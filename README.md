@@ -3,7 +3,7 @@
 
 ## ⚡Features
 
-## 🔍Data Sources
+## 🔍Data Source
 
 ## 📖Repository Structure
 |-- data/                # Raw and processed data files
