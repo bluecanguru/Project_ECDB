@@ -6,21 +6,21 @@
 ## 🔍Data Source
 
 ## 📖Repository Structure
-    📂 data/                - Raw and processed data files
+    📂 data/                # Raw and processed data files
 
-    📂 scripts/             - R scripts for data analysis
+    📂 scripts/             # R scripts for data analysis
 
-    📂 results/             - Output files, plots, and reports
+    📂 results/             # Output files, plots, and reports
 
-    📂 docs/                - Documentation and reports (HTML, R Markdown)
+    📂 docs/                # Documentation and reports (HTML, R Markdown)
 
-    📄 README.md            - Project overview and instructions
+    📄 README.md            # Project overview and instructions
 
 ## 🛠 Setup Instructions
 1. Clone the repository:
-- git clone https://github.com/bluecanguru/Project_ECDB
+    - git clone https://github.com/bluecanguru/Project_ECDB
 2. Install required dependencies:
-- pip install -r requirements.txt
+    - pip install -r requirements.txt
 
 ## 🖥️Usage
 ### Example Usage
