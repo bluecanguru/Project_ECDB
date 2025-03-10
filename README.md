@@ -6,15 +6,11 @@
 ## 🔍Data Source
 
 ## 📖Repository Structure
-|-- data/                # Raw and processed data files
-
-|-- scripts/             # R scripts for data analysis
-
-|-- results/             # Output files, plots, and reports
-
-|-- docs/                # Documentation and reports (HTML, R Markdown)
-
-|-- README.md            # Project overview and instructions
+📂 data/                # Raw and processed data files
+📂 scripts/             # R scripts for data analysis
+📂 results/             # Output files, plots, and reports
+📂 docs/                # Documentation and reports (HTML, R Markdown)
+📄 README.md            # Project overview and instructions
 
 ## 🛠 Setup Instructions
 1. Clone the repository:
