@@ -18,11 +18,13 @@
 
 ## 🛠 Setup Instructions
 1. Clone the repository:
-
-    git clone https://github.com/bluecanguru/Project_ECDB
+```bash
+git clone https://github.com/bluecanguru/Project_ECDB
+```
 2. Install required dependencies:
-
+```bash
     pip install -r requirements.txt
+```
 
 ## 🖥️Usage
 ### Example Usage
