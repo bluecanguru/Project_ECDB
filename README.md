@@ -1,7 +1,7 @@
 # Projeto_ECDB
 ## 🧬Introdução
 
-### Tipo de cancro estudado  
+### Tipo de Cancro  
 Esse estudo faz parte do The Cancer Genome Atlas (TCGA), um grande projeto colaborativo que visa caracterizar geneticamente diversos tipos de cancro usando tecnologias de alto rendimento, como RNA-Seq para expressão genética.  
 Este dataset está focado no *Glioma de baixo grau* (Low Grade Glioma - LGG), um tipo de tumor cerebral com evolução mais lenta do que o glioblastoma, mas que pode ser fatal em vários casos. 
 Apesar da sua progressão mais lenta, o LGG apresenta uma elevada heterogeneidade molecular, tornando-se relevante para estudos de estratificação de pacientes e identificação de subtipos tumorais.  
@@ -32,7 +32,6 @@ O dataset é compatível com técnicas de machine learning, permitindo:
 
 O acesso aberto e a documentação clara disponíveis pelo cBioPortal reforçam a reprodutibilidade científica e a integração com ferramentas computacionais, como APIs e bibliotecas em R ou Python.
 
-\
 
 ## ⚡Dados   
 No *cBioPortal*, este estudo inclui:  
@@ -86,6 +85,7 @@ install.packages(c(
   "viridis"         # escalas de cores alternativas (opcional para plots)
 ))
 ```
+
 ```{r}
 if (!require("BiocManager")) install.packages("BiocManager")
 BiocManager::install(c(
