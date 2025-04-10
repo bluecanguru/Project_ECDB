@@ -72,7 +72,7 @@ git clone https://github.com/bluecanguru/Project_ECDB
 pip install -r requirements.txt
 ```
 
-## ⚙️Dependencies
+## ⚙️Dependências
 ```{r}
 install.packages(c(
   "ggplot2",      # Visualization
@@ -108,10 +108,10 @@ BiocManager::install(c(
 ))
 ```
 
-## 📝Contribution
+## 📝Contribuição
 - [Cátia Rosário](https://github.com/bluecanguru)
 - [Vanessa Rodriguez](https://github.com/VaneBR)
 - [André Dias] ()
 
-## 📜Licence
+## 📜Licença
 This project is open source and available under the MIT License.
