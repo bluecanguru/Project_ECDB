@@ -111,7 +111,7 @@ BiocManager::install(c(
 ## 📝Contribuição
 - [Cátia Rosário](https://github.com/bluecanguru)
 - [Vanessa Rodriguez](https://github.com/VaneBR)
-- [André Dias] ()
+- [André Dias](https://github.com/Diasf333)
 
 ## 📜Licença
 This project is open source and available under the MIT License.
