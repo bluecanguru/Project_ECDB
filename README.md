@@ -75,32 +75,43 @@ pip install -r requirements.txt
 ## ⚙️Dependencies
 ```{r}
 install.packages(c(
-  "ggplot2",        # visualização
-  "gridExtra",      # combinar múltiplos gráficos
-  "DT",             # tabelas interativas (datatable)
-  "dplyr",          # manipulação de dados
-  "stringr",        # manipulação de strings
-  "knitr",          # renderizar RMarkdown
-  "data.table",     # leitura e manipulação eficiente de dados
-  "viridis"         # escalas de cores alternativas (opcional para plots)
+  "ggplot2",      # Visualization
+  "gplots",       # Enhanced plots
+  "gridExtra",    # Combine multiple plots
+  "DT",           # Interactive datatables
+  "dplyr",        # Data manipulation
+  "plyr",         # Data manipulation (older)
+  "stringr",      # String operations
+  "knitr",        # RMarkdown rendering
+  "data.table",   # Efficient data handling
+  "viridis",      # Color palettes
+  "openxlsx",     # Excel export
+  "corrplot",     # Correlation plots
+  "mgcv",         # GAM models
+  "ggpubr",       # Publication-ready plots
+  "GGally",       # Pair plots (extension of ggplot2)
+  "htmltools",     # To print text in specific format
+  "gprofiler2"
 ))
 ```
 
 ```{r}
 if (!require("BiocManager")) install.packages("BiocManager")
 BiocManager::install(c(
-  "edgeR",              # análise de expressão diferencial (RNA-seq)
-  "limma",              # suporte para design e estatísticas
-  "clusterProfiler",    # enriquecimento funcional (GO, KEGG)
-  "org.Hs.eg.db",       # anotação de genes humanos
-  "AnnotationDbi",      # suporte de mapeamento de genes
-  "biomaRt"             # (opcional) acesso a bases de dados biomoleculares
+  "edgeR",             # RNA-seq analysis
+  "limma",             # Linear models for microarray/RNA-seq
+  "clusterProfiler",   # Functional enrichment
+  "org.Hs.eg.db",      # Human gene annotation
+  "AnnotationDbi",     # Annotation infrastructure
+  "biomaRt",           # Interface to BioMart databases
+  "enrichplot"         # Visualization of enrichment results
 ))
 ```
 
 ## 📝Contribution
 - [Cátia Rosário](https://github.com/bluecanguru)
 - [Vanessa Rodriguez](https://github.com/VaneBR)
+- [André Dias] ()
 
 ## 📜Licence
 This project is open source and available under the MIT License.
