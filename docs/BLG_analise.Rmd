@@ -1,0 +1,1062 @@
+---
+title: "Trabalho de Extração"
+subtitle: "Brain Lower Glioma"
+author: "Cátia Rosário (pg57791) + Vanessa Rodriguez (pg49131) + André Dias (pg55127)"
+date: "2025-03-21"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    toc: yes
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+**Workflow:**
+
+1.  Explicação de origem e relevância dos dados
+
+2.  Preparação e pré-processamento dos dados
+
+3.  Sumarização dos dados e gráficos
+
+4.  Análise estatística univariada
+
+5.  Análise de expressão diferencial e enriquecimento
+
+\
+
+## **1. Explicação de origem e relevância dos dados**
+
+### Origem dos dados  
+Os dados provêm do estudo *"LGG TCGA PanCancer Atlas 2018"*, disponível no portal cBioPortal: [🔗 cBioPortal](https://www.cbioportal.org/study/summary?id=lgg_tcga_pan_can_atlas_2018).  
+
+Esse estudo faz parte do The Cancer Genome Atlas (TCGA), um grande projeto colaborativo que visa caracterizar geneticamente diversos tipos de cancro usando tecnologias de alto rendimento, como RNA-Seq para expressão genética.  
+
+---
+
+### Tipo de cancro estudado  
+Este dataset está focado no *Glioma de baixo grau* (Low Grade Glioma - LGG), um tipo de tumor cerebral com evolução mais lenta do que o glioblastoma, mas que pode ser fatal em vários casos. 
+
+Apesar da sua progressão mais lenta, o *LGG apresenta uma elevada heterogeneidade molecular*, tornando-se relevante para estudos de estratificação de pacientes e identificação de subtipos tumorais.  
+
+---
+
+### Dados disponíveis  
+No *cBioPortal*, este estudo inclui:  
+- *Dados clínicos* (idade, sexo, sobrevida, etc.)  
+- *Dados de Expressão Génica* (RNA-Seq)  
+- *Dados de Mutação Somática*  
+- *Dados de CNV* (alterações no número de cópias)  
+- *Dados de Metilação*  
+- *Dados de Fusões*  
+
+Todos esses dados são *integráveis, permitindo análises multi-ómicas para uma visão mais ampla dos mecanismos moleculares envolvidos no desenvolvimento e progressão do **glioma*.  
+  
+
+---
+
+### Dados de Expressão Génica (*RNA-Seq*)  
+Os dados de expressão génica foram processados usando o método *RSEM, com **normalização por lote* (batch-normalized) a partir da plataforma *Illumina HiSeq RNASeqV2*.  
+
+A matriz de expressão contém *milhares de genes* (geralmente cerca de 20.000), permitindo análises em larga escala de:  
+- *Expressão diferencial*  
+- *Coexpressão*  
+- *Redes regulatórias*  
+ 
+
+---
+
+### Relevância científica  
+Este tipo de dados permite identificar *genes diferencialmente expressos* entre:  
+- *Subtipos tumorais*  
+- *Grupos com ou sem mutações específicas*  
+- *Amostras normais e tumorais*  
+
+No caso do estudo, estão disponíveis apenas as *514 amostras tumorais* de *glioma de baixo grau (LGG)*.  
+
+Essas análises podem contribuir para:  
+- *Descoberta de biomarcadores moleculares*  
+- *Estratificação de pacientes com base em perfis de expressão*  
+- *Identificação de possíveis alvos terapêuticos*  
+
+Além disso, os dados podem ser utilizados em *análises de enriquecimento funcional* (como GSEA ou over-representation analysis) para responder a perguntas como:  
+
+> Quais as vias biológicas que estão mais ativas ou reprimidas em determinados grupos de pacientes?  
+
+Também é possível *associar perfis de expressão a desfechos clínicos, como *tempo de sobrevida ou resposta ao tratamento, contribuindo para avanços na *medicina personalizada*.  
+
+O dataset é *compatível com técnicas de machine learning*, permitindo:  
+- *Classificação de pacientes*  
+- *Seleção de features relevantes*  
+- *Predição de prognóstico*  
+
+O *acesso aberto* e a *documentação clara* disponíveis pelo cBioPortal *reforçam a reprodutibilidade científica* e *a integração com ferramentas computacionais, como **APIs e bibliotecas em R ou Python*.
+
+\
+
+## **2. Preparação e pré-processamento dos dados**
+
+**Workflow Dados Clínicos:**
+
+-   Visualização da estrutura dos dados
+
+-   Remoção de NAs
+
+-   Manipulação de dados
+
+-   Sumarização e visualização de dados
+
+\
+
+**Workflow Dados Expressão Génica:**
+
+-   Visualização estrutura dos dados
+
+-   Remoção de duplicados
+
+-   Tratamento de dados
+
+-   Remoção de genes pouco expressos
+
+-   Filtragem por níveis de expressão
+
+-   Sumarização e visualização de dados
+
+    \
+
+### 2.0. Importação das packages e dos dados
+
+```{r, message=F}
+cran_packages <- c(
+  "ggplot2",      # Visualization
+  "gplots",       # Enhanced plots
+  "gridExtra",    # Combine multiple plots
+  "DT",           # Interactive datatables
+  "dplyr",        # Data manipulation
+  "plyr",         # Data manipulation (older)
+  "stringr",      # String operations
+  "knitr",        # RMarkdown rendering
+  "data.table",   # Efficient data handling
+  "viridis",      # Color palettes
+  "openxlsx",     # Excel export
+  "corrplot",     # Correlation plots
+  "mgcv",         # GAM models
+  "ggpubr",       # Publication-ready plots
+  "GGally",        # Pair plots (extension of ggplot2)
+  "htmltools"
+)
+
+bioc_packages <- c(
+  "edgeR",             # RNA-seq analysis
+  "limma",             # Linear models for microarray/RNA-seq
+  "clusterProfiler",   # Functional enrichment
+  "org.Hs.eg.db",      # Human gene annotation
+  "AnnotationDbi",     # Annotation infrastructure
+  "biomaRt",           # Interface to BioMart databases
+  "enrichplot"         # Visualization of enrichment results
+)
+
+other_packages <- c(
+  "gprofiler2"         # g:Profiler interface (CRAN but bio-focused)
+)
+
+
+# Installation Block
+
+# Install BiocManager if missing
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+# Install missing CRAN packages
+cran_missing <- cran_packages[!cran_packages %in% rownames(installed.packages())]
+if (length(cran_missing) > 0) install.packages(cran_missing)
+
+# Install missing Bioconductor packages
+bioc_missing <- bioc_packages[!bioc_packages %in% rownames(installed.packages())]
+if (length(bioc_missing) > 0) BiocManager::install(bioc_missing)
+
+# Install other packages (gprofiler2 is from CRAN)
+other_missing <- other_packages[!other_packages %in% rownames(installed.packages())]
+if (length(other_missing) > 0) install.packages(other_missing)
+
+
+# Load All Packages
+
+all_packages <- c(cran_packages, bioc_packages, other_packages)
+invisible(lapply(all_packages, function(pkg) {
+  suppressMessages(library(pkg, character.only = TRUE))
+}))
+
+# Import data
+clini_data <- read.delim("lgg_tcga_pan_can_atlas_2018_clinical_data.tsv", stringsAsFactors=TRUE)
+gene_data <- read.delim("all_genes_mrna.txt")
+```
+
+
+Inicialmente, foram importados os dados de expressão génica, `gene_data`, e os dados clínicos dos pacientes analisados, `clini_data`.
+
+```{r, echo=F}
+palette_3 <- c("#fd7f6f", "#7eb0d5", "#b2e061", "#bd7ebe", "#ffb55a", "#ffee65", "#beb9db", "#fdcce5", "#8bd3c7")
+```
+
+\
+
+### 2.1. Dados Clínicos
+
+### 2.1.1. Estrutura dos dados
+
+A estrutura dos dados clínicos é apresentada em baixo. Os pacientes são identificados por um ID (`Patient.ID`) que faz correspondência com os dados de expressão génica. Nesta fase estão presentes 63 variáveis e 514 observações (listado abaixo).
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Preview dos dados
+datatable(head(clini_data), options = list(scrollX = TRUE))
+```
+
+\
+
+```{r}
+# Estrutura e formato dos dados
+str(clini_data)
+```
+
+\
+
+### 2.1.2. Manipulação de dados
+
+A manipulação dos dados clínicos consistiu nos seguintes processos:
+
+1.  Conversão do \`Patient.ID\` para o mesmo formato do dataset `gene_data;`
+2.  Remoção de variáveis clínicas consideradas menos relevantes no âmbito do estudo - este processo foi validado com literatura associada aos dados;
+3.  Simplificação dos nomes das colunas;
+4.  Conversão variável de meses de sobrevivência para anos de sobrevivência - `surv_years`;
+
+\
+
+```{r}
+# Change column names
+nomes <- names(clini_data)
+nomes <- gsub("[\\.]", " ", nomes)
+nomes <- gsub("  ", " ", nomes)
+nomes <- gsub(" $", "", nomes, perl=T)
+names(clini_data) <- nomes
+
+# Filter by columns of interest
+novas_colunas<-c("Sample ID","Diagnosis Age","Cancer Type Detailed","Months of disease specific survival","Disease specific Survival status","Fraction Genome Altered","Genetic Ancestry Label","Sex","Tumor Break Load")
+clini_data <- clini_data[,novas_colunas]
+
+# Change variable names
+colnames(clini_data) <- c("sample_ID","diagnosis_age","cancer_type","surv_months","surv_status","genome_alt","ancestry","sex","tbl")
+
+```
+
+\
+
+```{r}
+# Convert sample ID to same format as expression data
+sample_id <- clini_data$sample_ID
+sample_id <- gsub("-", "\\.", sample_id)
+clini_data$sample_ID <- sample_id
+
+# Convert survival months to years
+clini_data$surv_months <- clini_data$surv_months/12
+colnames(clini_data) <- c("sample_ID","diagnosis_age","cancer_type","surv_years","surv_status","genome_alt","ancestry","sex","tbl")
+```
+
+\
+
+### 2.1.3. Limpeza de Dados - Remoção de NAs
+
+Uma vez que a proporção de NAs é baixa (6%), optámos por remover as linhas com NAs (Listwise Deletion). Por consequente, a amostra ficou reduzida a 481 pacientes.
+
+```{r}
+# Remoção de NAs
+clini_data_no_na <- na.omit(clini_data)
+
+# Proporção de NAs no dataset
+(nrow(clini_data) - nrow(clini_data_no_na))/nrow(clini_data)
+```
+
+\
+
+### 2.1.4. Sumarização e Visualização de Dados
+
+```{r}
+#  medidas de localização e dispersão
+summary(clini_data_no_na)
+```
+
+O resumo estatístico dos dados permite conferir que não existem anomalias nos dados (e.g. proporções acima de 100% ou número de anos negativos). Seguem abaixo observações sobre as variáveis:
+
+-   **Diagnosis age** - vasta distribuição, variando entre 14 e 87 anos;
+
+-   **Cancer type** - Oligoastrocytoma representa 25% dos dados, sendo que os restantes são mais frequentes - Oligodendroglioma (36%) e Astrocytoma (38%);
+
+-   **Survival years** - 75% dos dados variam entre 0 e 3.4 anos, com um máximo de 17.6 anos, indicando que a variável poderá conter outliers
+
+-   **Survival status** - 70% da amostra apresenta-se em remissão (vivo ou não);
+
+-   **Genome altered** - a fração de genoma alterado apresenta uma grande variação, entre 0% e 95% de alteração. No entanto, sendo que 75% dos dados não ultrapassam 15% de alteração, valores muito elevados poderão ser outliers;
+
+-   **Ancestry** - a maioria da amostra (91%) tem ancestralidade europeia;
+
+-   **Sex** - a amostra encontra-se sensivelmente equilibrada, com 44% de mulheres e 56% de homens;
+
+-   **Tumor Break Load (TBL)** - esta métrica avalia a instabilidade genómica; 75% dos dados variam entre 0 e 37, enquanto que o valor máximo é de 618. À semelhança de outras variáveis, esta também aparenta ter outliers.
+
+    \
+
+**Numerical variables:**
+
+-   Diagnosis Age (`diagnosis_age`)
+
+-   Years of survival (`surv_years`)
+
+-   Fraction Genome Altered (`genome_alt`)
+
+-   Tumor Break Load (`tbl`)
+
+**Factor variables:**
+
+-   Sample ID (`sample_ID`)
+
+-   Sex (`sex`)
+
+-   Cancer Type (`cancer_type`)
+
+-   Genetic Ancestry (`ancestry`)
+
+-   Survival Status (`surv_status`)
+
+    \
+
+#### **Visualização univariada**
+
+```{r, fig.width = 12, message=F}
+# Variáveis numéricas
+a <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=diagnosis_age), fill="#7eb0d5") + theme_bw()
+b <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=surv_years), fill="#7eb0d5") + theme_bw()
+ggarrange(a, b)
+```
+
+A variável Diagnosis Age tem uma distribuição próxima da distribuição normal, enquanto que a Survival Years tem uma distribuição enviesada à direita.
+
+```{r, fig.width = 12, message=F}
+# Variáveis numéricas
+a <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=genome_alt), fill="#7eb0d5") + theme_bw()
+b <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=tbl), fill="#7eb0d5") + theme_bw()
+grid.arrange(a, b, ncol=2)
+```
+
+Ambas as variáveis apresentam uma distribuição enviesada à direita.
+
+```{r, fig.width = 12, message=F}
+# Variáveis categóricas
+a <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=sex, fill=sex)) + scale_fill_manual(values = palette_3) + theme_bw()
+b <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=cancer_type, fill=cancer_type)) + scale_fill_manual(values = palette_3) + theme_bw()
+grid.arrange(a, b, ncol=2)
+```
+
+A variável categóriga Sex está distribuida de forma equilibrada nos dois géneros. A variável Cancer Type apresenta uma pequena variação entre os 3 tipos de cancro como referido anteriormente.
+
+```{r, fig.width = 12, message=F}
+# Variáveis categóricas
+a <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=ancestry, fill=ancestry)) + scale_fill_manual(values = palette_3) + theme_bw()
+b <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=surv_status, fill=surv_status)) + scale_fill_manual(values = palette_3) + theme_bw()
+grid.arrange(a, b, ncol=2)
+```
+
+A análise da variável Ancestry confirma o que foi dito anteriormente, apresentando a ancestralidade europeia como a amostra predominante. A variável Survival Status demonstra uma taxa elevada de pacientes em remissão (vivos ou não) em comparação com os que morreram com tumor.
+
+\
+
+#### **Visualização multivariada**
+
+#### Variável numérica vs. numérica
+
+```{r, fig.width = 12,fig.height = 9, message=F}
+ggpairs(select_if(clini_data_no_na, is.numeric), lower = list(continuous = "smooth"))
+```
+
+Os pares Diagnosis Age - Survival Years e Diagnosis Age - Genome Alteration têm uma correlação baixa, negativa e positiva, respetivamente.\
+Os pares Diagnosis Age - Tumor Break Load, Survival Years - Genome Alteration and Survival Years - Tumor Break Load apresentam uma linha praticamente horizontal, pelo que não aparentam ter correlação.\
+O par Genome Alteration - Tumor Break Load apresenta correlação na ordem dos 0.484, que se mantém abaixo do coeficiente de correlação de 0.5, pelo que não aparenta haver multicolinearidade.
+
+\
+
+#### Variável numérica vs. categórica
+
+```{r}
+# Remover outliers
+  # get outliers
+out_age <- which(clini_data_no_na$diagnosis_age>(quantile(clini_data_no_na$diagnosis_age, .75) + 1.5*IQR(clini_data_no_na$diagnosis_age)))
+out_surv <- which(clini_data_no_na$surv_years>(quantile(clini_data_no_na$surv_years, .75) + 1.5*IQR(clini_data_no_na$surv_years)))
+out_gen <- which(clini_data_no_na$genome_alt>(quantile(clini_data_no_na$genome_alt, .75) + 1.5*IQR(clini_data_no_na$genome_alt)))
+out_tbl <- which(clini_data_no_na$tbl>(quantile(clini_data_no_na$tbl, .75) + 1.5*IQR(clini_data_no_na$tbl)))
+
+# remove outliers
+no_out_data <- clini_data_no_na[-c(out_age, out_surv, out_gen, out_tbl),]
+
+```
+
+Após uma análise grafica inicial constatou-se que algumas variáveis tinham outliers, pelo que se realizou a remoção dos mesmos.
+
+\
+
+##### *Variável sex*
+
+```{r, fig.width = 12, message=F}
+#### sex vs. diagnosis age
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=diagnosis_age, fill=sex)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. genome altered
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=genome_alt, fill=sex))+ geom_violin()  + geom_boxplot(width=.1)  + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+
+```
+
+A distribuição das variáveis Diagnosis Ages e Genome Alteration em função da variável Sex, representadas acima, não apresentam grande variação entre sexos. Infere-se que não há uma associação entre o sexo e essas variáveis.\
+
+```{r, fig.width = 12, message=F}
+#### sex vs. tbl
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=tbl, fill=sex)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. survival
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=surv_years, fill=sex)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+A distribuição das variáveis Tumor Break Load e Survival Years em função da variável Sex, representadas acima, não apresentam grande variação entre sexos. Infere-se que não há uma associação entre o sexo e essas variáveis.
+
+\
+
+##### *Variável Cancer Type*
+
+```{r}
+#### cancer type vs. diagnosis age
+ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=diagnosis_age, fill=sex)) + geom_violin() + geom_boxplot(width=.1,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+```
+
+Neste gráfico, o cancro Oligodendroglioma apresenta uma distribuição com mediana dos valores de Diagnosis Age acima dos outros tipos de cancro.
+
+\
+
+```{r, fig.width = 12, message=F}
+#### cancer type vs. genome altered
+ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=genome_alt, fill=sex)) + geom_violin() + geom_boxplot(width=.1,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+
+#ggarrange(a, b, common.legend=T)
+```
+
+Neste gráfico, foi feita uma distinção entre sexos, devido à ligeira diferença observada no gráfico individual de Genome Altered. Observa-se pouca variação entre os 3 tipos de cancro em relação à alteração de genoma. Entre sexos dentro dos pares há uma variação mais notável nos pacientes com oligoastrocytoma.\
+\
+
+```{r, fig.width = 12, message=F}
+
+#### cancer type vs. tbl
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=tbl, fill=cancer_type)) + geom_violin() + geom_boxplot(width=.1,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+
+#### cancer type vs. years survival
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=surv_years, fill=cancer_type)) + geom_violin() + geom_boxplot(width=.2,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+c <- ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=surv_years, fill=cancer_type)) + geom_violin() + geom_boxplot(width=.2,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+
+```
+
+No primeiro gráfico verifica-se uma grande variação dos valores de Tumor Break Load entre tipos de cancro.\
+No segundo gráfico não se observa grande variação entre tipos de cancro relativamente aos valores de Survival Years.
+
+\
+
+##### *Variável Ancestry*
+
+```{r, fig.width = 12, message=F}
+#### ancestry vs. genome altered
+a <- ggplot(no_out_data, aes(x = ancestry, y = genome_alt)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10")   +
+  xlab("") + 
+  theme_bw()
+
+#### ancestry vs. age
+b <- ggplot(no_out_data, aes(x = ancestry, y = diagnosis_age)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10") +
+  xlab("") +
+  theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+Em ambos os gráficos mostram diferenças significativas entre essas variáveis e essa variação pode ser devido a dimensões de amostra distintas.Embora dentro dos grupos com maiores dimensões (AFR e EUR) não há diferenças muito notáveis.
+
+```{r, fig.width = 12, message=F}
+#### ancestry vs. tbl
+a <- ggplot(no_out_data, aes(x = ancestry, y = tbl)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10")  + 
+  xlab("") +
+  theme_bw()
+
+#### ancestry vs. survival
+b <- ggplot(no_out_data, aes(x = ancestry, y = surv_years)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) + 
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10")  + 
+  xlab("") +
+  theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+Como observado no caso acima, ambos os gráficos mostram diferenças significativas entre essas variáveis e essa variação pode ser devido a dimensões de amostra distintas.Embora dentro dos grupos com maiores dimensões (AFR e EUR) não há diferenças muito notáveis.
+
+\
+
+##### *Variável surv_status*
+
+```{r, fig.width = 12, message=F}
+#### sex vs. diagnosis age
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=diagnosis_age, fill=surv_status)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. genome altered
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=genome_alt, fill=surv_status))+ geom_violin()  + geom_boxplot(width=.1)  + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+No primeiro plot observa-se uma clara distinção entre os fatores de Survival Status com base na Diagnosis Age. Diagnosis Age tem uma mediana mais alta para Dead With Tumor. O mesmo se verifica entre a variável Genome Alteration e Survival Status.
+
+```{r, fig.width = 12, message=F}
+#### sex vs. tbl
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=tbl, fill=surv_status)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. survival
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=surv_years, fill=surv_status)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+No primeiro plot observa-se uma clara distinção entre os fatores de Survival Status com base no Tumor Break Load. TBL tem uma mediana mais alta para Dead With Tumor. Verifica-se uma variação menos notável entre a variável Survival Years e Survival Status.
+
+\
+
+### 2.2. Dados de Expressão Génica
+
+### 2.2.1. Estrutura dos dados
+
+A estrutura dos dados de expressão génica é apresentada em baixo. Os pacientes são identificados por um ID (Patient.ID) que faz correspondência com os dados clínicos. Nesta fase estão presentes 10 variáveis e 20531 observações (listado abaixo).
+
+```{r, fig.width = 12, message=F}
+# Preview dos dados
+head(gene_data[,1:5])
+```
+
+```{r}
+# Estrutura dos dados
+str(gene_data[,1:10])
+```
+
+\
+
+### 2.2.2. Remoção de duplicados e NAs
+
+Nesta fase, procedeu-se a retirar genes duplicados, genes descontinuados e NAs do dataset. Em seguida, transpôs-se o dataset para colocar os Ids dos genes nas linhas, algo essencial para utilizar o package (EdgeR) nos passos seguintes. De modo a simplificar e ser possível comparar dados clínicos com dados de expressão génica excluiram-se os pacientes sem dados clínicos.
+
+```{r}
+# Gene descontinuado DGCR9, row nº 4886 - será removido
+gene_data_nd <- gene_data[-c(4886),]
+
+# Remove duplicates
+gene_data_nd <- gene_data_nd[-c(which(duplicated(gene_data_nd$Entrez_Gene_Id))),]
+
+# Remoção de NAs
+gene_data_nona <- na.omit(gene_data_nd)
+
+# Proporção de NAs no dataset
+(nrow(gene_data_nd) - nrow(gene_data_nona))/nrow(gene_data_nd)
+
+# Converter Gene ID em rownames
+rownames(gene_data_nona) <- gene_data_nona$Entrez_Gene_Id
+
+# Exclusão de pacientes sem dados clínicos
+complete_ids <- clini_data_no_na$sample_ID
+gene_data_nona <- gene_data_nona[,complete_ids]
+```
+
+\
+
+### 2.2.3. Tratamento de dados
+
+Para ser possível filtrar os dados usou-se DGEList e agrupou-se os dados em 4 grupos - f_cancer, f_survival, f_ancestry and f-sex.
+
+```{r}
+# Converter em formato DGEList (package edgeR)
+## sem agrupamento
+d0 <- DGEList(gene_data_nona) # no grouping
+
+# criação de grupos
+f_cancer <- revalue(clini_data_no_na$cancer_type, c("Astrocytoma" = "A", "Oligoastrocytoma" = "B", "Oligodendroglioma" = "C", "Low-Grade Glioma (NOS)" = "D"))
+f_survival <- revalue(clini_data_no_na$surv_status, c("0:ALIVE OR DEAD TUMOR FREE" = "A", "1:DEAD WITH TUMOR" = "B"))
+f_ancestry <- revalue(clini_data_no_na$ancestry, c("EUR" = "A", "AFR" = "B", "AFR_ADMIX" = "C", "EAS" = "D", "EUR_ADMIX" = "E", "AMR" = "F", "SAS" = "G", "SAS_ADMIX" = "H"))
+f_sex <- revalue(clini_data_no_na$sex, c("Male" = "A", "Female" = "B"))
+
+# agrupamento por fatores
+# d0_g <- DGEList(gene_data_nona, group=f_cancer) # or f_sex, etc.
+
+# Visualizar estrutura dos dados
+head(d0$samples)
+
+```
+
+\
+
+### 2.2.4. Remoção de genes pouco expressos
+
+A primeira fase de filtragem passou por excluir os genes pouco expressos, reduzindo a lista de 20504 elementos para 14357.
+
+```{r}
+# Excluir genes pouco expressos
+keep <- filterByExpr(d0) 
+d0_f <- d0[keep, , keep.lib.sizes=FALSE] # passámos de uma lista de 20504 elementos para 14357
+```
+
+\
+
+### 2.2.5. Filtragem por níveis de expressão
+
+Numa segunda fase de filtragem, utilizaram-se filtros flat patterns nomeadamente aplicar 2\*mediana (Filtro 1) e max/min \> 2 (Filtro 2), separadamente.
+
+```{r}
+# Filtros flat patterns - 2*mediana
+
+gene_exp_sd <- apply(gene_data_nona, 1, sd)
+d_med <- 2*median(gene_exp_sd)
+high_exp <- which(gene_exp_sd > d_med)
+
+mean_exp <- data.frame(gene_id=high_exp,exp=apply(gene_data_nona[high_exp,], 1, mean), row.names = c())
+mean_exp$exp_max <- mean_exp$exp/max(mean_exp$exp)
+mean_exp$exp_log <- log(mean_exp$exp)
+```
+
+```{r}
+# Filtros flat patterns - max/min > 2
+gene_min <- apply(gene_data_nona, 1, min)
+gene_max <- apply(gene_data_nona, 1, max)
+
+rat <- which(gene_max/gene_min > 2)
+mean_exp_f2 <- data.frame(id=rat, exp=apply(gene_data_nona[rat,-1], 1, mean))
+mean_exp_f2$exp_max <- mean_exp_f2$exp/max(mean_exp_f2$exp)
+mean_exp_f2$exp_log <- log(mean_exp_f2$exp)
+```
+
+\
+
+### 2.2.6. Sumarização e visualização de dados
+
+\
+
+#### Filtro flat pattern 1
+
+Recorrendo aos dados filtrados com o filtro 1, realizaram-se histogramas para visualizar a distribuição dos dados (Gráfico da esquerda). No gráfico da direita, apenas se fez uma normalização dos dados com log transformation de modo a poder visualizar melhor a distribuição, que aparenta ser próxima do normal.
+
+```{r, fig.width = 12, message=F}
+# Filtro flat pattern 1
+a <- ggplot(mean_exp) + geom_histogram(aes(x=exp), bins=400, fill="#7eb0d5") +ggtitle("Flat pattern 1")
+b <- ggplot(mean_exp) + geom_histogram(aes(x=exp_log), bins=400, fill="#7eb0d5") + ggtitle("Flat pattern 1 - log transformation")
+
+grid.arrange(a, b, ncol=2)
+```
+
+\
+
+#### Filtro flat pattern 2
+
+Recorrendo aos dados filtrados com o filtro 2, realizaram-se histogramas para visualizar a distribuição dos dados (Gráfico da esquerda). No gráfico da direita, apenas se fez uma normalização dos dados com log transformation de modo a poder visualizar melhor a distribuição, que aparenta estar enviesada à esquerda.
+
+```{r, fig.width = 12, message=F}
+# Filtro flat pattern 2
+a <- ggplot(mean_exp_f2) + geom_histogram(aes(x=exp), bins=200, fill="#7eb0d5") + ggtitle("Flat pattern 2")
+b <- ggplot(mean_exp_f2) + geom_histogram(aes(x=exp_log), bins=200, fill="#7eb0d5") + ggtitle("Flat pattern 2 - log transformation")
+
+grid.arrange(a, b, ncol=2)
+```
+
+\
+
+#### Ontologia de genes
+
+```{r, fig.width = 9, message=F}
+# 20 genes mais expressos
+all_genes_means <- data.frame(gene_id=c(rownames(gene_data_nona)),exp=apply(gene_data_nona, 1, mean))
+all_genes_means <- all_genes_means[order(all_genes_means$exp, decreasing=T),]
+high_20 <- head(all_genes_means, n=20)
+
+# Visualização das funções
+go_prof <- gost(high_20$gene_id, organism = "hsapiens")
+gostplot(go_prof, capped=F, interactive = T)
+```
+
+O gráfico seguinte representa a ontologia dos 20 genes mais expressos. Cada círculo representa uma correspondência de um gene a uma das suas funções. Genes podem estar associados a mais do que uma função. Duas das ontologias com maior representação pelos genes mais expressos são de componentes celulares (<GO:CC>) e processos biológicos (<GO:BP>).\
+
+
+## **3. Análise Univariada**
+```{r, fig.width=12}
+
+# Preparar dados clínicos e fatores
+clean_data_for_2part <- clini_data_no_na
+
+f_sex <- as.factor(clean_data_for_2part$sex)
+names(f_sex) <- clean_data_for_2part$sample_ID
+
+f_cancer <- as.factor(clean_data_for_2part$cancer_type)
+names(f_cancer) <- clean_data_for_2part$sample_ID
+
+f_ancestralidade <- as.factor(clean_data_for_2part$ancestry)
+names(f_ancestralidade) <- clean_data_for_2part$sample_ID
+
+f_survival <- as.factor(clean_data_for_2part$surv_status)
+names(f_survival) <- clean_data_for_2part$sample_ID
+
+fatores <- list(
+  Sexo = f_sex,
+  TipoTumor = f_cancer,
+  Ancestralidade = f_ancestralidade,
+  Sobrevivencia = f_survival
+)
+
+# Expressão log2-CPM
+log_cpm <- cpm(d0_f, log = TRUE)
+
+# Inicializar variáveis
+resultados_df <- data.frame()
+plot_list <- list()
+i <- 1
+
+# Loop por genes e variáveis clínicas
+for (gene_id in high_20$gene_id) {
+  for (nome_var in names(fatores)) {
+    grupo <- fatores[[nome_var]]
+    amostras_comuns <- intersect(colnames(log_cpm), names(grupo))
+    if (length(amostras_comuns) < 2) next
+
+    grupo_valid <- grupo[amostras_comuns]
+    expr <- log_cpm[as.character(gene_id), amostras_comuns]
+
+    if (length(unique(grupo_valid)) < 2) next
+
+    df_plot <- data.frame(expr = expr, grupo = grupo_valid)
+
+    # Boxplot
+    p <- ggplot(df_plot, aes(x = grupo, y = expr, fill=grupo)) +
+      geom_boxplot() +
+      scale_fill_manual(values = palette_3) + theme_bw() +
+      labs(title = paste(gene_id, "-", nome_var), x = nome_var, y = "Log2 CPM")
+
+    plot_list[[i]] <- p
+    i <- i + 1
+
+    # Teste estatístico
+    p_val <- if (length(unique(grupo_valid)) == 2) {
+      t.test(expr ~ grupo_valid)$p.value
+    } else {
+      summary(aov(expr ~ grupo_valid))[[1]][["Pr(>F)"]][1]
+    }
+
+    resultados_df <- rbind(resultados_df, data.frame(
+      gene = gene_id,
+      variavel_clinica = nome_var,
+      p_value = p_val
+    ))
+  }
+}
+
+# Mostrar os boxplots em grupos de 4 com espaços para comentários
+text_chunks <- c(
+  "Expressão muito elevada e bastante estável entre os grupos. Não há variações visíveis relevantes por sexo, tipo tumoral ou sobrevivência.",
+  "Apresenta expressão mais elevada em um subtipo tumoral específico. Discreta variação por ancestralidade.",
+  "Tipo tumoral mostra-se como principal fator diferenciador; as restantes variáveis não apresentam padrões marcantes.",
+  "Diferença clara entre subtipos tumorais. Leves variações por sexo e ancestralidade, mas não significativas.",
+  "Padrão consistente com maior expressão em um subtipo tumoral. Outras variáveis sem impacto aparente.",
+  "Variação moderada por tipo tumoral e ancestralidade. Não se observa tendência clara por sexo ou sobrevivência.",
+  "Diferença acentuada por tipo tumoral; demais variáveis com distribuição bastante homogênea.",
+  "Expressão globalmente elevada, com destaque para separação clara por tipo de tumor.",
+  "Maior dispersão na expressão entre ancestrais, embora não significativa. Tipo tumoral novamente com maior impacto.",
+  "Leve tendência por tipo tumoral, mas de forma mais subtil. Restantes variáveis sem separação visível.",
+  "Tipo tumoral volta a ser a única variável com alguma separação. Sexo e sobrevivência com padrão estável.",
+  "Diferença nítida entre os subtipos tumorais. As outras variáveis mantêm distribuição semelhante.",
+  "Maior expressão em determinado tipo de tumor. Pouca variação por sexo, ancestralidade ou sobrevivência.",
+  "Tipo tumoral como principal discriminador. Ancestralidade com leve dispersão, sem valor significativo.",
+  "Expressão moderadamente variável por subtipo tumoral. Restantes categorias com sobreposição considerável.",
+  "Leves diferenças entre subgrupos tumorais e ancestrais, sem separações fortes.",
+  "Tipo tumoral mostra padrão relevante; não há qualquer padrão aparente por sexo ou estado de sobrevivência.",
+  "Expressão consistente entre subgrupos. Nenhuma variável apresenta distinção marcada.",
+  "Variação estatisticamente significativa por tipo tumoral. Demais variáveis com comportamento uniforme.",
+  "Separação clara entre subtipos de tumor. Sexo e sobrevivência com pouca ou nenhuma relevância visível."
+ 
+)
+
+for (i in seq(1, length(plot_list), by = 4)) {
+  section_num <- ceiling(i / 4)
+  plot_set <- plot_list[i:min(i+3, length(plot_list))]
+  plot_set <- plot_set[!sapply(plot_set, is.null)]
+  
+  if (length(plot_set) > 0) {
+    grid.arrange(grobs = plot_set, ncol = 2, nrow = 2)
+  }
+  if (section_num <= length(text_chunks)) {
+    html_chunk <- HTML(paste0(
+      '<div style="background-color:#e6f2ff; padding:10px; border-left:5px solid #337ab7; margin-top:10px; margin-bottom:10px;">',
+      ">", text_chunks[section_num],
+      '</div>'
+    ))
+    print(html_chunk)
+  }
+}
+# Mostrar p-values em tabela
+datatable(resultados_df, caption = "p-values da análise univariada", options = list(pageLength = 10))
+```
+
+De forma geral, a variável tipo tumoral é consistentemente a que mais distingue a expressão dos genes analisados, sendo responsável pela maior parte das separações visíveis nos boxplots. Sexo, ancestralidade e estado de sobrevivência raramente apresentam variações relevantes entre grupos. Estes resultados reforçam que, entre os 20 genes mais expressos, o perfil transcriptômico está fortemente relacionado ao subtipo tumoral, com impacto reduzido de fatores demográficos ou clínicos mais amplos.
+
+## **4. Análise de Expressão Diferencial**
+```{r}
+for (nome_var in names(fatores)) {
+  cat("\n\n### Analisando expressão diferencial para:", nome_var, "###\n")
+
+  fator <- fatores[[nome_var]]
+  amostras_comuns <- intersect(colnames(d0_f), names(fator))
+  grupo <- fator[amostras_comuns]
+  y <- d0_f[, amostras_comuns]
+  grupo <- droplevels(grupo[!is.na(grupo)])
+  y <- y[, names(grupo)]
+
+  if (length(unique(grupo)) < 2) next
+
+  design <- model.matrix(~ grupo)
+  colnames(design) <- make.names(colnames(design))
+  y <- estimateDisp(y, design)
+  fit <- glmQLFit(y, design)
+  qlf <- glmQLFTest(fit, coef = 2)
+  top_genes <- topTags(qlf, n = Inf)
+  topGenesTable <- top_genes$table
+  topGenesTable$threshold <- as.factor(abs(topGenesTable$logFC) > 1 & topGenesTable$FDR < 0.05)
+
+  print(ggplot(topGenesTable, aes(x = logFC, y = -log10(FDR), color = threshold)) +
+          geom_point(alpha = 0.6) +
+          scale_color_manual(values = c("grey", "red")) +
+          theme_bw() +
+          ggtitle(paste("Volcano plot -", nome_var)))
+
+  cat("Total de DEGs com FDR < 0.05 e |logFC| > 1:", sum(topGenesTable$threshold == TRUE), "\n")
+  datatable(head(topGenesTable[topGenesTable$threshold == TRUE, ], 20), caption = paste("Top DEGs -", nome_var))
+}
+```
+
+A análise de expressão diferencial foi realizada com o objetivo de identificar genes diferencialmente expressos (DEGs) entre os diferentes grupos definidos por variáveis clínicas. Para garantir a significância estatística e a relevância biológica dos resultados, foram aplicados filtros com FDR < 0.05 e |log2(Fold Change)| > 1.
+
+**Sexo:**
+
+No caso da variável sexo, foram identificados apenas 4 genes diferencialmente expressos. Este número reduzido é consistente com o facto de a maioria dos genes expressos em tumores cerebrais não apresentar variação significativa entre indivíduos do sexo masculino e feminino. Os genes detetados podem estar associados a mecanismos relacionados com cromossomas sexuais ou regulação hormonal, mas o impacto global do sexo na expressão genética revelou-se limitado.
+
+**Tipo de Tumor:**
+
+Para a variável tipo de tumor, foram identificados 129 DEGs, evidenciando um impacto considerável desta característica clínica na expressão genética. A comparação entre os subtipos tumorais revelou perfis de expressão distintos, com genes significativamente up e down-regulados. Estes resultados indicam que o tipo de tumor influência fortemente o comportamento molecular das células tumorais, podendo refletir diferenças nos mecanismos de progressão, agressividade ou resposta ao tratamento.
+
+**Ancestralidade:**
+
+Relativamente à ancestralidade, foram identificados 13 genes diferencialmente expressos. Apesar de ser um número modesto, sugere que existem algumas diferenças no perfil de expressão genética entre grupos populacionais distintos, possivelmente relacionadas com variantes genéticas herdadas. Estes resultados podem ter implicações no entendimento da predisposição genética e na personalização de abordagens terapêuticas.
+
+**Sobrevivencia:**
+
+Por fim, a variável sobrevivência revelou-se a que apresentou o maior número de genes diferencialmente expressos, com um total de 202 DEGs. Esta associação forte entre o perfil de expressão genética e o tempo de sobrevivência dos pacientes sugere a existência de assinaturas moleculares com potencial valor prognóstico. Os genes identificados poderão estar envolvidos em processos biológicos associados à progressão tumoral, resposta imune ou resistência terapêutica.
+
+
+
+
+## **5. Enriquecimento Funcional**
+```{r enriquecimento-funcional, message=FALSE, warning=FALSE, fig.width=8, fig.height=5, results='asis'}
+
+# Loop por cada variável categórica
+for (nome_var in names(fatores)) {
+  cat(paste0("\n\n### Enriquecimento funcional para: ", nome_var, " ###\n"))
+  
+  # Subconjunto de amostras e fatores
+  fator <- fatores[[nome_var]]
+  amostras_comuns <- intersect(colnames(d0_f), names(fator))
+  grupo <- droplevels(fator[amostras_comuns])
+  
+  if (length(unique(grupo)) < 2) {
+    cat("Fator sem pelo menos 2 grupos distintos. Pulando.\n")
+    next
+  }
+
+  y <- d0_f[, names(grupo)]
+  design <- model.matrix(~ grupo)
+  y <- estimateDisp(y, design)
+  fit <- glmQLFit(y, design)
+  qlf <- glmQLFTest(fit, coef = 2)
+  
+  top_genes <- topTags(qlf, n = Inf)
+  deg_table <- top_genes$table
+  deg_genes <- deg_table[deg_table$FDR < 0.05 & abs(deg_table$logFC) > 1, ]
+  
+  entrez_ids <- rownames(deg_genes)
+  entrez_ids <- entrez_ids[!is.na(entrez_ids)]
+
+  cat("Total de genes diferenciais para enriquecimento:", length(entrez_ids), "\n\n")
+
+  if (length(entrez_ids) > 10) {
+    ## GO: Biological Processes
+    ego <- enrichGO(
+      gene = entrez_ids,
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID",
+      ont = "BP",
+      pAdjustMethod = "BH",
+      qvalueCutoff = 0.05,
+      readable = TRUE
+    )
+
+    if (!is.null(ego) && nrow(as.data.frame(ego)) > 0) {
+      cat("**Dotplot GO - Processos Biológicos:**\n")
+      print(dotplot(ego, showCategory = 20) +
+              theme(axis.text.y = element_text(size = 10)) +
+              scale_y_discrete(labels = function(x) str_wrap(x, width = 40)))
+      
+      datatable(as.data.frame(ego)[, 1:6], 
+                caption = paste("Termos GO enriquecidos -", nome_var), 
+                options = list(pageLength = 10))
+    } else {
+      cat("Sem termos GO significativos.\n")
+    }
+
+    ## KEGG Pathways
+    ekegg <- enrichKEGG(
+      gene = entrez_ids,
+      organism = 'hsa',
+      pAdjustMethod = "BH",
+      qvalueCutoff = 0.05
+    )
+
+    if (!is.null(ekegg) && nrow(as.data.frame(ekegg)) > 0) {
+      cat("**Dotplot KEGG - Vias metabólicas:**\n")
+      print(dotplot(ekegg, showCategory = 20) +
+              theme(axis.text.y = element_text(size = 10)) +
+              scale_y_discrete(labels = function(x) str_wrap(x, width = 40)))
+      
+      datatable(as.data.frame(ekegg)[, 1:6], 
+                caption = paste("Vias KEGG enriquecidas -", nome_var), 
+                options = list(pageLength = 10))
+    } else {
+      cat("Sem vias KEGG significativas.\n")
+    }
+
+  } else {
+    cat("Genes insuficientes para enriquecimento funcional.\n")
+  }
+
+  cat("\n\n---\n\n")
+}
+```
+
+
+Após a identificação dos genes diferencialmente expressos (DEGs), foi realizada uma análise de enriquecimento funcional com base nas listas de genes significativos obtidas para cada variável clínica. Esta análise teve como objetivo identificar termos de ontologia genética (GO) ou vias de sinalização (como KEGG), que se encontram explicitamente representados nos gráficos gerados.
+
+**Sexo**
+
+A análise de enriquecimento funcional para os genes diferencialmente expressos entre sexos revelou um número reduzido de termos significativamente enriquecidos, o que está de acordo com o baixo número de DEGs (4), impossibilitando a realização da análise de enriquecimento. Os poucos processos identificados estão provavelmente associados a funções ligadas aos cromossomas sexuais ou regulação hormonal, refletindo as diferenças biológicas subtis entre indivíduos do sexo masculino e feminino. A ausência de vias altamente representadas sugere que o sexo tem um impacto limitado nos mecanismos celulares globais, pelo menos no contexto dos tumores analisados.
+
+**Tipo de Tumor**
+
+Para a variável tipo de tumor, o gráfico apresentou uma maior densidade de termos significativos. Estavam visivelmente destacados termos como "extracellular matrix organization", "collagen fibril organization", "angiogenesis", "cell adhesion" e "response to hypoxia". Estes termos indicam que os genes diferencialmente expressos entre os tipos tumorais estão fortemente associados a processos extracelulares, estruturais e de resposta a alterações no ambiente celular, como a hipóxia. Estes resultados indicam que diferentes tipos de tumor apresentam perfis moleculares distintos, refletindo variações nos mecanismos biológicos subjacentes, o que poderá ser relevante para a definição de terapias direcionadas.
+
+**Ancestralidade**
+
+Apesar de ter um número relativamente baixo de DEGs (13), a análise evidenciou alguns termos significativamente enriquecidos. Os genes diferencialmente expressos parecem estar envolvidos em processos metabólicos específicos e resposta imune, sugerindo que a ancestralidade pode influenciar mecanismos biológicos subtis que, embora não dominantes, podem contribuir para variações fenotípicas observadas entre populações. Este resultado reforça a importância da diversidade genética na investigação.
+
+**Sobrevivência**
+
+Finalmente, a variável sobrevivência apresentou o maior número de termos enriquecidos, visíveis numa lista densa no gráfico correspondente. Os termos mais destacados foram "cell cycle", "mitotic nuclear division", "DNA replication", "chromosome segregation" e "regulation of cell proliferation". Estes termos sugerem, de forma clara pelas legendas, que os genes associados à sobrevivência estão envolvidos em processos celulares fundamentais ligados à divisão celular e à proliferação. Estes resultados apontam para uma forte associação entre a expressão génica e o prognóstico clínico dos pacientes, sugerindo a existência de potenciais assinaturas moleculares com valor prognóstico e possíveis alvos terapêuticos.
+
+
+
+## **6. Análise PCA**
+```{r pca-plot, message=FALSE, warning=FALSE, fig.width=7, fig.height=5, results='asis'}
+# Usar todos os genes da matriz de expressão
+expr_all <- log_cpm  # log2 CPM
+
+# Transpor: linhas = amostras, colunas = genes
+expr_all_t <- t(expr_all)
+
+# PCA
+pca_res <- prcomp(expr_all_t, scale. = TRUE)
+
+# Criar diretório para salvar resultados se necessário
+dir.create("resultados_PCA", showWarnings = FALSE)
+
+# Loop pelas variáveis clínicas
+for (nome_var in names(fatores)) {
+  cat("### PCA para:", nome_var, "\n\n")
+  
+  grupo_var <- fatores[[nome_var]]
+  
+  # Alinhar amostras
+  amostras_comuns <- intersect(rownames(expr_all_t), names(grupo_var))
+  
+  if (length(amostras_comuns) < 2) {
+    cat("Variável", nome_var, "não tem amostras suficientes. Pulando.\n\n")
+    next
+  }
+  
+  grupo_valid <- grupo_var[amostras_comuns]
+  grupo_valid <- as.factor(grupo_valid)
+  
+  if (length(unique(grupo_valid)) < 2) {
+    cat("Variável", nome_var, "não tem pelo menos 2 grupos distintos. Pulando.\n\n")
+    next
+  }
+  
+  # Preparar dados PCA para o gráfico
+  pca_data <- as.data.frame(pca_res$x[amostras_comuns, 1:2])
+  pca_data$grupo <- grupo_valid
+  
+  # Gráfico PCA
+  p <- ggplot(pca_data, aes(x = PC1, y = PC2, color = grupo)) +
+    geom_point(size = 3, alpha = 0.8) +scale_fill_manual(values = palette_3) + theme_bw() +
+    labs(title = paste("PCA -", nome_var),
+         x = "PC1", y = "PC2")
+    
+  
+  print(p)  # Mostrar no HTML
+
+  cat("\n\n---\n\n")  # Separador entre gráficos no relatório
+}
+```
+
+
+A Análise de Componentes Principais (PCA) foi aplicada com o objetivo de reduzir a dimensionalidade dos dados de expressão gênica e identificar padrões de variação global entre as amostras. Esta técnica estatística transforma um conjunto de variáveis possivelmente correlacionadas em um novo conjunto de variáveis não correlacionadas, denominadas componentes principais. A partir disso, foi possível visualizar a distribuição das amostras segundo variáveis clínicas relevantes, como sexo, tipo tumoral, ancestralidade e estado de sobrevivência, facilitando a identificação de possíveis agrupamentos e relações entre os dados.
+
+**Sexo**
+
+O gráfico mostra dois grupos parcialmente sobrepostos ao longo dos componentes principais PC1 e PC2. Não há uma separação clara entre os sexos, o que indica que, com base na expressão global dos genes, não existe uma forte variação entre os grupos masculino e feminino. Portanto, o sexo não parece ser um fator determinante nos principais padrões de variação da expressão genética nesse conjunto de dados.
+
+**TipoTumor**
+
+Neste gráfico, observa-se uma separação mais evidente entre os subtipos tumorais. Os grupos ocupam regiões distintas no plano PC1 vs. PC2, o que sugere que o tipo de tumor está associado a variações expressivas no perfil transcriptômico. Isso reforça a ideia de que os subtipos de LGG possuem assinaturas moleculares distintas, consistentes com a heterogeneidade molecular previamente descrita no trabalho.
+
+**Ancestralidade**
+
+Apesar de uma predominância de indivíduos com ancestralidade europeia, o gráfico revela alguma sobreposição entre os grupos, com tendência a agrupamentos por ancestralidade. Isto indica que pode haver variações genômicas associadas à ancestralidade, embora o impacto sobre a expressão global pareça menos acentuado do que no caso do tipo tumoral.
+
+**Sobrevivência**
+
+O gráfico mostra alta sobreposição entre os grupos de sobrevivência (vivo com/sem tumor e morto com tumor). Isso sugere que, com base apenas nos dois primeiros componentes principais, o status de sobrevivência não é fortemente refletido no padrão global de expressão genética. É possível que diferenças mais discretas estejam presentes em componentes secundários ou em subconjuntos de genes específicos.
+
