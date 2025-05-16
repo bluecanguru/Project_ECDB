@@ -33,4 +33,16 @@ Imports:
     AnnotationDbi,
     biomaRt,
     enrichplot,
-    gprofiler2
+    gprofiler2,
+    caret,       
+    randomForest",
+    smotefamily",
+    xgboost", 
+    e1071, 
+    pROC,    
+    MLmetrics, 
+    pander,    
+    tibble,    
+    Rtsne,     
+    uwot,     
+    factoextra
