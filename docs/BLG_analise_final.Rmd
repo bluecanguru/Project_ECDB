@@ -1,0 +1,3774 @@
+---
+title: "Trabalho de Extração"
+subtitle: "Brain Lower Glioma"
+author: "Cátia Rosário (pg57791) + Vanessa Rodriguez (pg49131) + André Dias (pg55127)"
+date: "2025-03-21"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    toc: yes
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+**Workflow:**
+
+1.  Explicação de origem e relevância dos dados
+
+2.  Preparação e pré-processamento dos dados
+
+3.  Sumarização dos dados e gráficos
+
+4.  Análise estatística univariada
+
+5.  Análise de expressão diferencial e enriquecimento
+
+\
+
+## **1. Explicação de origem e relevância dos dados**
+
+### Origem dos dados  
+Os dados provêm do estudo *"LGG TCGA PanCancer Atlas 2018"*, disponível no portal cBioPortal: [🔗 cBioPortal](https://www.cbioportal.org/study/summary?id=lgg_tcga_pan_can_atlas_2018).  
+
+Esse estudo faz parte do The Cancer Genome Atlas (TCGA), um grande projeto colaborativo que visa caracterizar geneticamente diversos tipos de cancro usando tecnologias de alto rendimento, como RNA-Seq para expressão genética.  
+
+---
+
+### Tipo de cancro estudado  
+Este dataset está focado no *Glioma de baixo grau* (Low Grade Glioma - LGG), um tipo de tumor cerebral com evolução mais lenta do que o glioblastoma, mas que pode ser fatal em vários casos. 
+
+Apesar da sua progressão mais lenta, o *LGG apresenta uma elevada heterogeneidade molecular*, tornando-se relevante para estudos de estratificação de pacientes e identificação de subtipos tumorais.  
+
+---
+
+### Dados disponíveis  
+No *cBioPortal*, este estudo inclui:  
+- *Dados clínicos* (idade, sexo, sobrevida, etc.)  
+- *Dados de Expressão Génica* (RNA-Seq)  
+- *Dados de Mutação Somática*  
+- *Dados de CNV* (alterações no número de cópias)  
+- *Dados de Metilação*  
+- *Dados de Fusões*  
+
+Todos esses dados são *integráveis, permitindo análises multi-ómicas para uma visão mais ampla dos mecanismos moleculares envolvidos no desenvolvimento e progressão do **glioma*.  
+  
+
+---
+
+### Dados de Expressão Génica (*RNA-Seq*)  
+Os dados de expressão génica foram processados usando o método *RSEM, com **normalização por lote* (batch-normalized) a partir da plataforma *Illumina HiSeq RNASeqV2*.  
+
+A matriz de expressão contém *milhares de genes* (geralmente cerca de 20.000), permitindo análises em larga escala de:  
+- *Expressão diferencial*  
+- *Coexpressão*  
+- *Redes regulatórias*  
+ 
+
+---
+
+### Relevância científica  
+Este tipo de dados permite identificar *genes diferencialmente expressos* entre:  
+- *Subtipos tumorais*  
+- *Grupos com ou sem mutações específicas*  
+- *Amostras normais e tumorais*  
+
+No caso do estudo, estão disponíveis apenas as *514 amostras tumorais* de *glioma de baixo grau (LGG)*.  
+
+Essas análises podem contribuir para:  
+- *Descoberta de biomarcadores moleculares*  
+- *Estratificação de pacientes com base em perfis de expressão*  
+- *Identificação de possíveis alvos terapêuticos*  
+
+Além disso, os dados podem ser utilizados em *análises de enriquecimento funcional* (como GSEA ou over-representation analysis) para responder a perguntas como:  
+
+> Quais as vias biológicas que estão mais ativas ou reprimidas em determinados grupos de pacientes?  
+
+Também é possível *associar perfis de expressão a desfechos clínicos, como *tempo de sobrevida ou resposta ao tratamento, contribuindo para avanços na *medicina personalizada*.  
+
+O dataset é *compatível com técnicas de machine learning*, permitindo:  
+- *Classificação de pacientes*  
+- *Seleção de features relevantes*  
+- *Predição de prognóstico*  
+
+O *acesso aberto* e a *documentação clara* disponíveis pelo cBioPortal *reforçam a reprodutibilidade científica* e *a integração com ferramentas computacionais, como **APIs e bibliotecas em R ou Python*.
+
+\
+
+## **2. Preparação e pré-processamento dos dados**
+
+**Workflow Dados Clínicos:**
+
+-   Visualização da estrutura dos dados
+
+-   Remoção de NAs
+
+-   Manipulação de dados
+
+-   Sumarização e visualização de dados
+
+\
+
+**Workflow Dados Expressão Génica:**
+
+-   Visualização estrutura dos dados
+
+-   Remoção de duplicados
+
+-   Tratamento de dados
+
+-   Remoção de genes pouco expressos
+
+-   Filtragem por níveis de expressão
+
+-   Sumarização e visualização de dados
+
+    \
+
+### 2.0. Importação das packages e dos dados
+
+```{r, message=F}
+cran_packages <- c(
+  "ggplot2",      # Visualization
+  "gplots",       # Enhanced plots
+  "gridExtra",    # Combine multiple plots
+  "DT",           # Interactive datatables
+  "dplyr",        # Data manipulation
+  "plyr",         # Data manipulation (older)
+  "stringr",      # String operations
+  "knitr",        # RMarkdown rendering
+  "data.table",   # Efficient data handling
+  "viridis",      # Color palettes
+  "openxlsx",     # Excel export
+  "corrplot",     # Correlation plots
+  "mgcv",         # GAM models
+  "ggpubr",       # Publication-ready plots
+  "GGally",       # Pair plots (extension of ggplot2)
+  "htmltools",    # Plots
+  "caret",        # Modelation
+  "randomForest", # Random Forest
+  "smotefamily",  # SMOTE
+  "xgboost",      # xgboost
+  "e1071",        # SVM
+  "pROC",         # ROC CURVE
+  "MLmetrics",    # F1_score
+  "pander",       # Tables
+  "tibble",       # Interactive datatables
+  "Rtsne",        # UMAP
+  "uwot",         # T-SNE
+  "factoextra"    # T-SNE
+  
+)
+
+bioc_packages <- c(
+  "edgeR",             # RNA-seq analysis
+  "limma",             # Linear models for microarray/RNA-seq
+  "clusterProfiler",   # Functional enrichment
+  "org.Hs.eg.db",      # Human gene annotation
+  "AnnotationDbi",     # Annotation infrastructure
+  "biomaRt",           # Interface to BioMart databases
+  "enrichplot"         # Visualization of enrichment results
+)
+
+other_packages <- c(
+  "gprofiler2"         # g:Profiler interface (CRAN but bio-focused)
+)
+
+
+# Installation Block
+
+# Install BiocManager if missing
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+# Install missing CRAN packages
+cran_missing <- cran_packages[!cran_packages %in% rownames(installed.packages())]
+if (length(cran_missing) > 0) install.packages(cran_missing)
+
+# Install missing Bioconductor packages
+bioc_missing <- bioc_packages[!bioc_packages %in% rownames(installed.packages())]
+if (length(bioc_missing) > 0) BiocManager::install(bioc_missing)
+
+# Install other packages (gprofiler2 is from CRAN)
+other_missing <- other_packages[!other_packages %in% rownames(installed.packages())]
+if (length(other_missing) > 0) install.packages(other_missing)
+
+
+# Load All Packages
+
+all_packages <- c(cran_packages, bioc_packages, other_packages)
+invisible(lapply(all_packages, function(pkg) {
+  suppressMessages(library(pkg, character.only = TRUE))
+}))
+
+# Import data
+clini_data <- read.delim("lgg_tcga_pan_can_atlas_2018_clinical_data.tsv", stringsAsFactors=TRUE)
+gene_data <- read.delim("all_genes_mrna.txt")
+```
+
+
+Inicialmente, foram importados os dados de expressão génica, `gene_data`, e os dados clínicos dos pacientes analisados, `clini_data`.
+
+```{r, echo=F}
+palette_3 <- c("#fd7f6f", "#7eb0d5", "#b2e061", "#bd7ebe", "#ffb55a", "#ffee65", "#beb9db", "#fdcce5", "#8bd3c7")
+```
+
+\
+
+### 2.1. Dados Clínicos
+
+### 2.1.1. Estrutura dos dados
+
+A estrutura dos dados clínicos é apresentada em baixo. Os pacientes são identificados por um ID (`Patient.ID`) que faz correspondência com os dados de expressão génica. Nesta fase estão presentes 63 variáveis e 514 observações (listado abaixo).
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Preview dos dados
+datatable(head(clini_data), options = list(scrollX = TRUE))
+```
+
+\
+
+```{r}
+# Estrutura e formato dos dados
+str(clini_data)
+```
+
+\
+
+### 2.1.2. Manipulação de dados
+
+A manipulação dos dados clínicos consistiu nos seguintes processos:
+
+1.  Conversão do \`Patient.ID\` para o mesmo formato do dataset `gene_data;`
+2.  Remoção de variáveis clínicas consideradas menos relevantes no âmbito do estudo - este processo foi validado com literatura associada aos dados;
+3.  Simplificação dos nomes das colunas;
+4.  Conversão variável de meses de sobrevivência para anos de sobrevivência - `surv_years`;
+
+\
+
+```{r}
+# Change column names
+nomes <- names(clini_data)
+nomes <- gsub("[\\.]", " ", nomes)
+nomes <- gsub("  ", " ", nomes)
+nomes <- gsub(" $", "", nomes, perl=T)
+names(clini_data) <- nomes
+
+# Filter by columns of interest
+novas_colunas<-c("Sample ID","Diagnosis Age","Cancer Type Detailed","Months of disease specific survival","Disease specific Survival status","Fraction Genome Altered","Genetic Ancestry Label","Sex","Tumor Break Load")
+clini_data <- clini_data[,novas_colunas]
+
+# Change variable names
+colnames(clini_data) <- c("sample_ID","diagnosis_age","cancer_type","surv_months","surv_status","genome_alt","ancestry","sex","tbl")
+
+```
+
+\
+
+```{r}
+# Convert sample ID to same format as expression data
+sample_id <- clini_data$sample_ID
+sample_id <- gsub("-", "\\.", sample_id)
+clini_data$sample_ID <- sample_id
+
+# Convert survival months to years
+clini_data$surv_months <- clini_data$surv_months/12
+colnames(clini_data) <- c("sample_ID","diagnosis_age","cancer_type","surv_years","surv_status","genome_alt","ancestry","sex","tbl")
+```
+
+\
+
+### 2.1.3. Limpeza de Dados - Remoção de NAs
+
+Uma vez que a proporção de NAs é baixa (6%), optámos por remover as linhas com NAs (Listwise Deletion). Por consequente, a amostra ficou reduzida a 481 pacientes.
+
+```{r}
+# Remoção de NAs
+clini_data_no_na <- na.omit(clini_data)
+
+# Proporção de NAs no dataset
+(nrow(clini_data) - nrow(clini_data_no_na))/nrow(clini_data)
+```
+
+\
+
+### 2.1.4. Sumarização e Visualização de Dados
+
+```{r}
+#  medidas de localização e dispersão
+summary(clini_data_no_na)
+```
+
+O resumo estatístico dos dados permite conferir que não existem anomalias nos dados (e.g. proporções acima de 100% ou número de anos negativos). Seguem abaixo observações sobre as variáveis:
+
+-   **Diagnosis age** - vasta distribuição, variando entre 14 e 87 anos;
+
+-   **Cancer type** - Oligoastrocytoma representa 25% dos dados, sendo que os restantes são mais frequentes - Oligodendroglioma (36%) e Astrocytoma (38%);
+
+-   **Survival years** - 75% dos dados variam entre 0 e 3.4 anos, com um máximo de 17.6 anos, indicando que a variável poderá conter outliers
+
+-   **Survival status** - 70% da amostra apresenta-se em remissão (vivo ou não);
+
+-   **Genome altered** - a fração de genoma alterado apresenta uma grande variação, entre 0% e 95% de alteração. No entanto, sendo que 75% dos dados não ultrapassam 15% de alteração, valores muito elevados poderão ser outliers;
+
+-   **Ancestry** - a maioria da amostra (91%) tem ancestralidade europeia;
+
+-   **Sex** - a amostra encontra-se sensivelmente equilibrada, com 44% de mulheres e 56% de homens;
+
+-   **Tumor Break Load (TBL)** - esta métrica avalia a instabilidade genómica; 75% dos dados variam entre 0 e 37, enquanto que o valor máximo é de 618. À semelhança de outras variáveis, esta também aparenta ter outliers.
+
+    \
+
+**Numerical variables:**
+
+-   Diagnosis Age (`diagnosis_age`)
+
+-   Years of survival (`surv_years`)
+
+-   Fraction Genome Altered (`genome_alt`)
+
+-   Tumor Break Load (`tbl`)
+
+**Factor variables:**
+
+-   Sample ID (`sample_ID`)
+
+-   Sex (`sex`)
+
+-   Cancer Type (`cancer_type`)
+
+-   Genetic Ancestry (`ancestry`)
+
+-   Survival Status (`surv_status`)
+
+    \
+
+#### **Visualização univariada**
+
+```{r, fig.width = 12, message=F}
+# Variáveis numéricas
+a <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=diagnosis_age), fill="#7eb0d5") + theme_bw()
+b <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=surv_years), fill="#7eb0d5") + theme_bw()
+ggarrange(a, b)
+```
+
+A variável Diagnosis Age tem uma distribuição próxima da distribuição normal, enquanto que a Survival Years tem uma distribuição enviesada à direita.
+
+```{r, fig.width = 12, message=F}
+# Variáveis numéricas
+a <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=genome_alt), fill="#7eb0d5") + theme_bw()
+b <- ggplot(alpha=0.8) + geom_histogram(data=clini_data_no_na, aes(x=tbl), fill="#7eb0d5") + theme_bw()
+grid.arrange(a, b, ncol=2)
+```
+
+Ambas as variáveis apresentam uma distribuição enviesada à direita.
+
+```{r, fig.width = 12, message=F}
+# Variáveis categóricas
+a <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=sex, fill=sex)) + scale_fill_manual(values = palette_3) + theme_bw()
+b <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=cancer_type, fill=cancer_type)) + scale_fill_manual(values = palette_3) + theme_bw()
+grid.arrange(a, b, ncol=2)
+```
+
+A variável categóriga Sex está distribuida de forma equilibrada nos dois géneros. A variável Cancer Type apresenta uma pequena variação entre os 3 tipos de cancro como referido anteriormente.
+
+```{r, fig.width = 12, message=F}
+# Variáveis categóricas
+a <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=ancestry, fill=ancestry)) + scale_fill_manual(values = palette_3) + theme_bw()
+b <- ggplot(alpha=0.8) + geom_bar(data=clini_data_no_na, aes(x=surv_status, fill=surv_status)) + scale_fill_manual(values = palette_3) + theme_bw()
+grid.arrange(a, b, ncol=2)
+```
+
+A análise da variável Ancestry confirma o que foi dito anteriormente, apresentando a ancestralidade europeia como a amostra predominante. A variável Survival Status demonstra uma taxa elevada de pacientes em remissão (vivos ou não) em comparação com os que morreram com tumor.
+
+\
+
+#### **Visualização multivariada**
+
+#### Variável numérica vs. numérica
+
+```{r, fig.width = 12,fig.height = 9, message=F}
+ggpairs(select_if(clini_data_no_na, is.numeric), lower = list(continuous = "smooth"))
+```
+
+Os pares Diagnosis Age - Survival Years e Diagnosis Age - Genome Alteration têm uma correlação baixa, negativa e positiva, respetivamente.\
+Os pares Diagnosis Age - Tumor Break Load, Survival Years - Genome Alteration and Survival Years - Tumor Break Load apresentam uma linha praticamente horizontal, pelo que não aparentam ter correlação.\
+O par Genome Alteration - Tumor Break Load apresenta correlação na ordem dos 0.484, que se mantém abaixo do coeficiente de correlação de 0.5, pelo que não aparenta haver multicolinearidade.
+
+\
+
+#### Variável numérica vs. categórica
+
+```{r}
+# Remover outliers
+  # get outliers
+out_age <- which(clini_data_no_na$diagnosis_age>(quantile(clini_data_no_na$diagnosis_age, .75) + 1.5*IQR(clini_data_no_na$diagnosis_age)))
+out_surv <- which(clini_data_no_na$surv_years>(quantile(clini_data_no_na$surv_years, .75) + 1.5*IQR(clini_data_no_na$surv_years)))
+out_gen <- which(clini_data_no_na$genome_alt>(quantile(clini_data_no_na$genome_alt, .75) + 1.5*IQR(clini_data_no_na$genome_alt)))
+out_tbl <- which(clini_data_no_na$tbl>(quantile(clini_data_no_na$tbl, .75) + 1.5*IQR(clini_data_no_na$tbl)))
+
+# remove outliers
+no_out_data <- clini_data_no_na[-c(out_age, out_surv, out_gen, out_tbl),]
+
+```
+
+Após uma análise grafica inicial constatou-se que algumas variáveis tinham outliers, pelo que se realizou a remoção dos mesmos.
+
+\
+
+##### *Variável sex*
+
+```{r, fig.width = 12, message=F}
+#### sex vs. diagnosis age
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=diagnosis_age, fill=sex)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. genome altered
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=genome_alt, fill=sex))+ geom_violin()  + geom_boxplot(width=.1)  + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+
+```
+
+A distribuição das variáveis Diagnosis Ages e Genome Alteration em função da variável Sex, representadas acima, não apresentam grande variação entre sexos. Infere-se que não há uma associação entre o sexo e essas variáveis.\
+
+```{r, fig.width = 12, message=F}
+#### sex vs. tbl
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=tbl, fill=sex)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. survival
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=sex, y=surv_years, fill=sex)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+A distribuição das variáveis Tumor Break Load e Survival Years em função da variável Sex, representadas acima, não apresentam grande variação entre sexos. Infere-se que não há uma associação entre o sexo e essas variáveis.
+
+\
+
+##### *Variável Cancer Type*
+
+```{r}
+#### cancer type vs. diagnosis age
+ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=diagnosis_age, fill=sex)) + geom_violin() + geom_boxplot(width=.1,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+```
+
+Neste gráfico, o cancro Oligodendroglioma apresenta uma distribuição com mediana dos valores de Diagnosis Age acima dos outros tipos de cancro.
+
+\
+
+```{r, fig.width = 12, message=F}
+#### cancer type vs. genome altered
+ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=genome_alt, fill=sex)) + geom_violin() + geom_boxplot(width=.1,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+
+#ggarrange(a, b, common.legend=T)
+```
+
+Neste gráfico, foi feita uma distinção entre sexos, devido à ligeira diferença observada no gráfico individual de Genome Altered. Observa-se pouca variação entre os 3 tipos de cancro em relação à alteração de genoma. Entre sexos dentro dos pares há uma variação mais notável nos pacientes com oligoastrocytoma.\
+\
+
+```{r, fig.width = 12, message=F}
+
+#### cancer type vs. tbl
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=tbl, fill=cancer_type)) + geom_violin() + geom_boxplot(width=.1,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+
+#### cancer type vs. years survival
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=surv_years, fill=cancer_type)) + geom_violin() + geom_boxplot(width=.2,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+c <- ggplot(alpha=0.8, data=no_out_data, aes(x=cancer_type, y=surv_years, fill=cancer_type)) + geom_violin() + geom_boxplot(width=.2,position = position_dodge(width =0.9)) +  scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+
+```
+
+No primeiro gráfico verifica-se uma grande variação dos valores de Tumor Break Load entre tipos de cancro.\
+No segundo gráfico não se observa grande variação entre tipos de cancro relativamente aos valores de Survival Years.
+
+\
+
+##### *Variável Ancestry*
+
+```{r, fig.width = 12, message=F}
+#### ancestry vs. genome altered
+a <- ggplot(no_out_data, aes(x = ancestry, y = genome_alt)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10")   +
+  xlab("") + 
+  theme_bw()
+
+#### ancestry vs. age
+b <- ggplot(no_out_data, aes(x = ancestry, y = diagnosis_age)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10") +
+  xlab("") +
+  theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+Em ambos os gráficos mostram diferenças significativas entre essas variáveis e essa variação pode ser devido a dimensões de amostra distintas.Embora dentro dos grupos com maiores dimensões (AFR e EUR) não há diferenças muito notáveis.
+
+```{r, fig.width = 12, message=F}
+#### ancestry vs. tbl
+a <- ggplot(no_out_data, aes(x = ancestry, y = tbl)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10")  + 
+  xlab("") +
+  theme_bw()
+
+#### ancestry vs. survival
+b <- ggplot(no_out_data, aes(x = ancestry, y = surv_years)) +
+  geom_boxplot(fill = palette_3[1:length(unique(no_out_data$ancestry))], alpha = 0.5) + 
+  geom_jitter(width = 0.2, alpha = 0.8, color = "grey10")  + 
+  xlab("") +
+  theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+Como observado no caso acima, ambos os gráficos mostram diferenças significativas entre essas variáveis e essa variação pode ser devido a dimensões de amostra distintas.Embora dentro dos grupos com maiores dimensões (AFR e EUR) não há diferenças muito notáveis.
+
+\
+
+##### *Variável surv_status*
+
+```{r, fig.width = 12, message=F}
+#### sex vs. diagnosis age
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=diagnosis_age, fill=surv_status)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. genome altered
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=genome_alt, fill=surv_status))+ geom_violin()  + geom_boxplot(width=.1)  + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+No primeiro plot observa-se uma clara distinção entre os fatores de Survival Status com base na Diagnosis Age. Diagnosis Age tem uma mediana mais alta para Dead With Tumor. O mesmo se verifica entre a variável Genome Alteration e Survival Status.
+
+```{r, fig.width = 12, message=F}
+#### sex vs. tbl
+a <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=tbl, fill=surv_status)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+#### sex vs. survival
+b <- ggplot(alpha=0.8, data=no_out_data, aes(x=surv_status, y=surv_years, fill=surv_status)) + geom_violin() + geom_boxplot(width=.1) + scale_fill_manual(values = palette_3) + theme_bw()
+
+ggarrange(a, b, common.legend=T)
+```
+
+No primeiro plot observa-se uma clara distinção entre os fatores de Survival Status com base no Tumor Break Load. TBL tem uma mediana mais alta para Dead With Tumor. Verifica-se uma variação menos notável entre a variável Survival Years e Survival Status.
+
+\
+
+### 2.2. Dados de Expressão Génica
+
+### 2.2.1. Estrutura dos dados
+
+A estrutura dos dados de expressão génica é apresentada em baixo. Os pacientes são identificados por um ID (Patient.ID) que faz correspondência com os dados clínicos. Nesta fase estão presentes 10 variáveis e 20531 observações (listado abaixo).
+
+```{r, fig.width = 12, message=F}
+# Preview dos dados
+head(gene_data[,1:5])
+```
+
+```{r}
+# Estrutura dos dados
+str(gene_data[,1:10])
+```
+
+\
+
+### 2.2.2. Remoção de duplicados e NAs
+
+Nesta fase, procedeu-se a retirar genes duplicados, genes descontinuados e NAs do dataset. Em seguida, transpôs-se o dataset para colocar os Ids dos genes nas linhas, algo essencial para utilizar o package (EdgeR) nos passos seguintes. De modo a simplificar e ser possível comparar dados clínicos com dados de expressão génica excluiram-se os pacientes sem dados clínicos.
+
+```{r}
+# Gene descontinuado DGCR9, row nº 4886 - será removido
+gene_data_nd <- gene_data[-c(4886),]
+
+# Remove duplicates
+gene_data_nd <- gene_data_nd[-c(which(duplicated(gene_data_nd$Entrez_Gene_Id))),]
+
+# Remoção de NAs
+gene_data_nona <- na.omit(gene_data_nd)
+
+# Proporção de NAs no dataset
+(nrow(gene_data_nd) - nrow(gene_data_nona))/nrow(gene_data_nd)
+
+# Converter Gene ID em rownames
+rownames(gene_data_nona) <- gene_data_nona$Entrez_Gene_Id
+
+# Exclusão de pacientes sem dados clínicos
+complete_ids <- clini_data_no_na$sample_ID
+gene_data_nona <- gene_data_nona[,complete_ids]
+```
+
+\
+
+### 2.2.3. Tratamento de dados
+
+Para ser possível filtrar os dados usou-se DGEList e agrupou-se os dados em 4 grupos - f_cancer, f_survival, f_ancestry and f-sex.
+
+```{r}
+# Converter em formato DGEList (package edgeR)
+## sem agrupamento
+d0 <- DGEList(gene_data_nona) # no grouping
+
+# criação de grupos
+f_cancer <- revalue(clini_data_no_na$cancer_type, c("Astrocytoma" = "A", "Oligoastrocytoma" = "B", "Oligodendroglioma" = "C", "Low-Grade Glioma (NOS)" = "D"))
+f_survival <- revalue(clini_data_no_na$surv_status, c("0:ALIVE OR DEAD TUMOR FREE" = "A", "1:DEAD WITH TUMOR" = "B"))
+f_ancestry <- revalue(clini_data_no_na$ancestry, c("EUR" = "A", "AFR" = "B", "AFR_ADMIX" = "C", "EAS" = "D", "EUR_ADMIX" = "E", "AMR" = "F", "SAS" = "G", "SAS_ADMIX" = "H"))
+f_sex <- revalue(clini_data_no_na$sex, c("Male" = "A", "Female" = "B"))
+
+# agrupamento por fatores
+# d0_g <- DGEList(gene_data_nona, group=f_cancer) # or f_sex, etc.
+
+# Visualizar estrutura dos dados
+head(d0$samples)
+
+```
+
+\
+
+### 2.2.4. Remoção de genes pouco expressos
+
+A primeira fase de filtragem passou por excluir os genes pouco expressos, reduzindo a lista de 20504 elementos para 14357.
+
+```{r}
+# Excluir genes pouco expressos
+keep <- filterByExpr(d0) 
+d0_f <- d0[keep, , keep.lib.sizes=FALSE] # passámos de uma lista de 20504 elementos para 14357
+```
+
+\
+
+### 2.2.5. Filtragem por níveis de expressão
+
+Numa segunda fase de filtragem, utilizaram-se filtros flat patterns nomeadamente aplicar 2\*mediana (Filtro 1) e max/min \> 2 (Filtro 2), separadamente.
+
+```{r}
+# Filtros flat patterns - 2*mediana
+
+gene_exp_sd <- apply(gene_data_nona, 1, sd)
+d_med <- 2*median(gene_exp_sd)
+high_exp <- which(gene_exp_sd > d_med)
+
+mean_exp <- data.frame(gene_id=high_exp,exp=apply(gene_data_nona[high_exp,], 1, mean), row.names = c())
+mean_exp$exp_max <- mean_exp$exp/max(mean_exp$exp)
+mean_exp$exp_log <- log(mean_exp$exp)
+```
+
+```{r}
+# Filtros flat patterns - max/min > 2
+gene_min <- apply(gene_data_nona, 1, min)
+gene_max <- apply(gene_data_nona, 1, max)
+
+rat <- which(gene_max/gene_min > 2)
+mean_exp_f2 <- data.frame(id=rat, exp=apply(gene_data_nona[rat,-1], 1, mean))
+mean_exp_f2$exp_max <- mean_exp_f2$exp/max(mean_exp_f2$exp)
+mean_exp_f2$exp_log <- log(mean_exp_f2$exp)
+```
+
+\
+
+### 2.2.6. Sumarização e visualização de dados
+
+\
+
+#### Filtro flat pattern 1
+
+Recorrendo aos dados filtrados com o filtro 1, realizaram-se histogramas para visualizar a distribuição dos dados (Gráfico da esquerda). No gráfico da direita, apenas se fez uma normalização dos dados com log transformation de modo a poder visualizar melhor a distribuição, que aparenta ser próxima do normal.
+
+```{r, fig.width = 12, message=F}
+# Filtro flat pattern 1
+a <- ggplot(mean_exp) + geom_histogram(aes(x=exp), bins=400, fill="#7eb0d5") +ggtitle("Flat pattern 1")
+b <- ggplot(mean_exp) + geom_histogram(aes(x=exp_log), bins=400, fill="#7eb0d5") + ggtitle("Flat pattern 1 - log transformation")
+
+grid.arrange(a, b, ncol=2)
+```
+
+\
+
+#### Filtro flat pattern 2
+
+Recorrendo aos dados filtrados com o filtro 2, realizaram-se histogramas para visualizar a distribuição dos dados (Gráfico da esquerda). No gráfico da direita, apenas se fez uma normalização dos dados com log transformation de modo a poder visualizar melhor a distribuição, que aparenta estar enviesada à esquerda.
+
+```{r, fig.width = 12, message=F}
+# Filtro flat pattern 2
+a <- ggplot(mean_exp_f2) + geom_histogram(aes(x=exp), bins=200, fill="#7eb0d5") + ggtitle("Flat pattern 2")
+b <- ggplot(mean_exp_f2) + geom_histogram(aes(x=exp_log), bins=200, fill="#7eb0d5") + ggtitle("Flat pattern 2 - log transformation")
+
+grid.arrange(a, b, ncol=2)
+```
+
+\
+
+#### Ontologia de genes
+
+```{r, fig.width = 9, message=F}
+# 20 genes mais expressos
+all_genes_means <- data.frame(gene_id=c(rownames(gene_data_nona)),exp=apply(gene_data_nona, 1, mean))
+all_genes_means <- all_genes_means[order(all_genes_means$exp, decreasing=T),]
+high_20 <- head(all_genes_means, n=20)
+
+# Visualização das funções
+go_prof <- gost(high_20$gene_id, organism = "hsapiens")
+gostplot(go_prof, capped=F, interactive = T)
+```
+
+O gráfico seguinte representa a ontologia dos 20 genes mais expressos. Cada círculo representa uma correspondência de um gene a uma das suas funções. Genes podem estar associados a mais do que uma função. Duas das ontologias com maior representação pelos genes mais expressos são de componentes celulares (<GO:CC>) e processos biológicos (<GO:BP>).\
+
+
+## **3. Análise Univariada**
+```{r, fig.width=12}
+
+# Preparar dados clínicos e fatores
+clean_data_for_2part <- clini_data_no_na
+
+f_ancestralidade <- as.factor(clean_data_for_2part$sex)
+names(f_sex) <- clean_data_for_2part$sample_ID
+
+f_cancer <- as.factor(clean_data_for_2part$cancer_type)
+names(f_cancer) <- clean_data_for_2part$sample_ID
+
+f_ancestralidade <- as.factor(clean_data_for_2part$ancestry)
+names(f_ancestralidade) <- clean_data_for_2part$sample_ID
+
+f_survival <- as.factor(clean_data_for_2part$surv_status)
+names(f_survival) <- clean_data_for_2part$sample_ID
+
+fatores <- list(
+  Sexo = f_sex,
+  TipoTumor = f_cancer,
+  Ancestralidade = f_ancestralidade,
+  Sobrevivencia = f_survival
+)
+
+# Expressão log2-CPM
+log_cpm <- cpm(d0_f, log = TRUE)
+
+# Inicializar variáveis
+resultados_df <- data.frame()
+plot_list <- list()
+i <- 1
+
+# Loop por genes e variáveis clínicas
+for (gene_id in high_20$gene_id) {
+  for (nome_var in names(fatores)) {
+    grupo <- fatores[[nome_var]]
+    amostras_comuns <- intersect(colnames(log_cpm), names(grupo))
+    if (length(amostras_comuns) < 2) next
+
+    grupo_valid <- grupo[amostras_comuns]
+    expr <- log_cpm[as.character(gene_id), amostras_comuns]
+
+    if (length(unique(grupo_valid)) < 2) next
+
+    df_plot <- data.frame(expr = expr, grupo = grupo_valid)
+
+    # Boxplot
+    p <- ggplot(df_plot, aes(x = grupo, y = expr, fill=grupo)) +
+      geom_boxplot() +
+      scale_fill_manual(values = palette_3) + theme_bw() +
+      labs(title = paste(gene_id, "-", nome_var), x = nome_var, y = "Log2 CPM")
+
+    plot_list[[i]] <- p
+    i <- i + 1
+
+    # Teste estatístico
+    p_val <- if (length(unique(grupo_valid)) == 2) {
+      t.test(expr ~ grupo_valid)$p.value
+    } else {
+      summary(aov(expr ~ grupo_valid))[[1]][["Pr(>F)"]][1]
+    }
+
+    resultados_df <- rbind(resultados_df, data.frame(
+      gene = gene_id,
+      variavel_clinica = nome_var,
+      p_value = p_val
+    ))
+  }
+}
+
+# Mostrar os boxplots em grupos de 4 com espaços para comentários
+text_chunks <- c(
+  "Expressão muito elevada e bastante estável entre os grupos. Não há variações visíveis relevantes por sexo, tipo tumoral ou sobrevivência.",
+  "Apresenta expressão mais elevada em um subtipo tumoral específico. Discreta variação por ancestralidade.",
+  "Tipo tumoral mostra-se como principal fator diferenciador; as restantes variáveis não apresentam padrões marcantes.",
+  "Diferença clara entre subtipos tumorais. Leves variações por sexo e ancestralidade, mas não significativas.",
+  "Padrão consistente com maior expressão em um subtipo tumoral. Outras variáveis sem impacto aparente.",
+  "Variação moderada por tipo tumoral e ancestralidade. Não se observa tendência clara por sexo ou sobrevivência.",
+  "Diferença acentuada por tipo tumoral; demais variáveis com distribuição bastante homogênea.",
+  "Expressão globalmente elevada, com destaque para separação clara por tipo de tumor.",
+  "Maior dispersão na expressão entre ancestrais, embora não significativa. Tipo tumoral novamente com maior impacto.",
+  "Leve tendência por tipo tumoral, mas de forma mais subtil. Restantes variáveis sem separação visível.",
+  "Tipo tumoral volta a ser a única variável com alguma separação. Sexo e sobrevivência com padrão estável.",
+  "Diferença nítida entre os subtipos tumorais. As outras variáveis mantêm distribuição semelhante.",
+  "Maior expressão em determinado tipo de tumor. Pouca variação por sexo, ancestralidade ou sobrevivência.",
+  "Tipo tumoral como principal discriminador. Ancestralidade com leve dispersão, sem valor significativo.",
+  "Expressão moderadamente variável por subtipo tumoral. Restantes categorias com sobreposição considerável.",
+  "Leves diferenças entre subgrupos tumorais e ancestrais, sem separações fortes.",
+  "Tipo tumoral mostra padrão relevante; não há qualquer padrão aparente por sexo ou estado de sobrevivência.",
+  "Expressão consistente entre subgrupos. Nenhuma variável apresenta distinção marcada.",
+  "Variação estatisticamente significativa por tipo tumoral. Demais variáveis com comportamento uniforme.",
+  "Separação clara entre subtipos de tumor. Sexo e sobrevivência com pouca ou nenhuma relevância visível."
+)
+
+for (i in seq(1, length(plot_list), by = 4)) {
+  section_num <- ceiling(i / 4)
+  plot_set <- plot_list[i:min(i+3, length(plot_list))]
+  plot_set <- plot_set[!sapply(plot_set, is.null)]
+  
+  if (length(plot_set) > 0) {
+    grid.arrange(grobs = plot_set, ncol = 2, nrow = 2)
+  }
+  if (section_num <= length(text_chunks)) {
+    html_chunk <- HTML(paste0(
+      '<div style="background-color:#e6f2ff; padding:10px; border-left:5px solid #337ab7; margin-top:10px; margin-bottom:10px;">',
+      text_chunks[section_num],
+      '</div>'
+    ))
+    print(html_chunk)
+  }
+}
+# Mostrar p-values em tabela
+datatable(resultados_df, caption = "p-values da análise univariada", options = list(pageLength = 10))
+```
+
+De forma geral, a variável tipo tumoral é consistentemente a que mais distingue a expressão dos genes analisados, sendo responsável pela maior parte das separações visíveis nos boxplots. Sexo, ancestralidade e estado de sobrevivência raramente apresentam variações relevantes entre grupos. Estes resultados reforçam que, entre os 20 genes mais expressos, o perfil transcriptômico está fortemente relacionado ao subtipo tumoral, com impacto reduzido de fatores demográficos ou clínicos mais amplos.
+
+## **4. Análise de Expressão Diferencial**
+```{r}
+for (nome_var in names(fatores)) {
+  cat("\n\n### Analisando expressão diferencial para:", nome_var, "###\n")
+
+  fator <- fatores[[nome_var]]
+  amostras_comuns <- intersect(colnames(d0_f), names(fator))
+  grupo <- fator[amostras_comuns]
+  y <- d0_f[, amostras_comuns]
+  grupo <- droplevels(grupo[!is.na(grupo)])
+  y <- y[, names(grupo)]
+
+  if (length(unique(grupo)) < 2) next
+
+  design <- model.matrix(~ grupo)
+  colnames(design) <- make.names(colnames(design))
+  y <- estimateDisp(y, design)
+  fit <- glmQLFit(y, design)
+  qlf <- glmQLFTest(fit, coef = 2)
+  top_genes <- topTags(qlf, n = Inf)
+  topGenesTable <- top_genes$table
+  topGenesTable$threshold <- as.factor(abs(topGenesTable$logFC) > 1 & topGenesTable$FDR < 0.05)
+
+  print(ggplot(topGenesTable, aes(x = logFC, y = -log10(FDR), color = threshold)) +
+          geom_point(alpha = 0.6) +
+          scale_color_manual(values = c("grey", "red")) +
+          theme_bw() +
+          ggtitle(paste("Volcano plot -", nome_var)))
+
+  cat("Total de DEGs com FDR < 0.05 e |logFC| > 1:", sum(topGenesTable$threshold == TRUE), "\n")
+  datatable(head(topGenesTable[topGenesTable$threshold == TRUE, ], 20), caption = paste("Top DEGs -", nome_var))
+}
+```
+
+A análise de expressão diferencial foi realizada com o objetivo de identificar genes diferencialmente expressos (DEGs) entre os diferentes grupos definidos por variáveis clínicas. Para garantir a significância estatística e a relevância biológica dos resultados, foram aplicados filtros com FDR < 0.05 e |log2(Fold Change)| > 1.
+
+**Sexo:**
+
+No caso da variável sexo, foram identificados apenas 4 genes diferencialmente expressos. Este número reduzido é consistente com o facto de a maioria dos genes expressos em tumores cerebrais não apresentar variação significativa entre indivíduos do sexo masculino e feminino. Os genes detetados podem estar associados a mecanismos relacionados com cromossomas sexuais ou regulação hormonal, mas o impacto global do sexo na expressão genética revelou-se limitado.
+
+**Tipo de Tumor:**
+
+Para a variável tipo de tumor, foram identificados 129 DEGs, evidenciando um impacto considerável desta característica clínica na expressão genética. A comparação entre os subtipos tumorais revelou perfis de expressão distintos, com genes significativamente up e down-regulados. Estes resultados indicam que o tipo de tumor influência fortemente o comportamento molecular das células tumorais, podendo refletir diferenças nos mecanismos de progressão, agressividade ou resposta ao tratamento.
+
+**Ancestralidade:**
+
+Relativamente à ancestralidade, foram identificados 13 genes diferencialmente expressos. Apesar de ser um número modesto, sugere que existem algumas diferenças no perfil de expressão genética entre grupos populacionais distintos, possivelmente relacionadas com variantes genéticas herdadas. Estes resultados podem ter implicações no entendimento da predisposição genética e na personalização de abordagens terapêuticas.
+
+**Sobrevivencia:**
+
+Por fim, a variável sobrevivência revelou-se a que apresentou o maior número de genes diferencialmente expressos, com um total de 202 DEGs. Esta associação forte entre o perfil de expressão genética e o tempo de sobrevivência dos pacientes sugere a existência de assinaturas moleculares com potencial valor prognóstico. Os genes identificados poderão estar envolvidos em processos biológicos associados à progressão tumoral, resposta imune ou resistência terapêutica.
+
+
+## **5. Enriquecimento Funcional**
+```{r enriquecimento-funcional, message=FALSE, warning=FALSE, fig.width=8, fig.height=5, results='asis'}
+
+# Loop por cada variável categórica
+for (nome_var in names(fatores)) {
+  cat(paste0("\n\n### Enriquecimento funcional para: ", nome_var, " ###\n"))
+  
+  # Subconjunto de amostras e fatores
+  fator <- fatores[[nome_var]]
+  amostras_comuns <- intersect(colnames(d0_f), names(fator))
+  grupo <- droplevels(fator[amostras_comuns])
+  
+  if (length(unique(grupo)) < 2) {
+    cat("Fator sem pelo menos 2 grupos distintos. Pulando.\n")
+    next
+  }
+
+  y <- d0_f[, names(grupo)]
+  design <- model.matrix(~ grupo)
+  y <- estimateDisp(y, design)
+  fit <- glmQLFit(y, design)
+  qlf <- glmQLFTest(fit, coef = 2)
+  
+  top_genes <- topTags(qlf, n = Inf)
+  deg_table <- top_genes$table
+  deg_genes <- deg_table[deg_table$FDR < 0.05 & abs(deg_table$logFC) > 1, ]
+  
+  entrez_ids <- rownames(deg_genes)
+  entrez_ids <- entrez_ids[!is.na(entrez_ids)]
+
+  cat("Total de genes diferenciais para enriquecimento:", length(entrez_ids), "\n\n")
+
+  if (length(entrez_ids) > 10) {
+    ## GO: Biological Processes
+    ego <- enrichGO(
+      gene = entrez_ids,
+      OrgDb = org.Hs.eg.db,
+      keyType = "ENTREZID",
+      ont = "BP",
+      pAdjustMethod = "BH",
+      qvalueCutoff = 0.05,
+      readable = TRUE
+    )
+
+    if (!is.null(ego) && nrow(as.data.frame(ego)) > 0) {
+      cat("**Dotplot GO - Processos Biológicos:**\n")
+      print(dotplot(ego, showCategory = 20) +
+              theme(axis.text.y = element_text(size = 10)) +
+              scale_y_discrete(labels = function(x) str_wrap(x, width = 40)))
+      
+      datatable(as.data.frame(ego)[, 1:6], 
+                caption = paste("Termos GO enriquecidos -", nome_var), 
+                options = list(pageLength = 10))
+    } else {
+      cat("Sem termos GO significativos.\n")
+    }
+
+    ## KEGG Pathways
+    ekegg <- enrichKEGG(
+      gene = entrez_ids,
+      organism = 'hsa',
+      pAdjustMethod = "BH",
+      qvalueCutoff = 0.05
+    )
+
+    if (!is.null(ekegg) && nrow(as.data.frame(ekegg)) > 0) {
+      cat("**Dotplot KEGG - Vias metabólicas:**\n")
+      print(dotplot(ekegg, showCategory = 20) +
+              theme(axis.text.y = element_text(size = 10)) +
+              scale_y_discrete(labels = function(x) str_wrap(x, width = 40)))
+      
+      datatable(as.data.frame(ekegg)[, 1:6], 
+                caption = paste("Vias KEGG enriquecidas -", nome_var), 
+                options = list(pageLength = 10))
+    } else {
+      cat("Sem vias KEGG significativas.\n")
+    }
+
+  } else {
+    cat("Genes insuficientes para enriquecimento funcional.\n")
+  }
+
+  cat("\n\n---\n\n")
+}
+```
+
+
+Após a identificação dos genes diferencialmente expressos (DEGs), foi realizada uma análise de enriquecimento funcional com base nas listas de genes significativos obtidas para cada variável clínica. Esta análise teve como objetivo identificar termos de ontologia genética (GO) ou vias de sinalização (como KEGG), que se encontram explicitamente representados nos gráficos gerados.
+
+**Sexo**
+
+A análise de enriquecimento funcional para os genes diferencialmente expressos entre sexos revelou um número reduzido de termos significativamente enriquecidos, o que está de acordo com o baixo número de DEGs (4), impossibilitando a realização da análise de enriquecimento. Os poucos processos identificados estão provavelmente associados a funções ligadas aos cromossomas sexuais ou regulação hormonal, refletindo as diferenças biológicas subtis entre indivíduos do sexo masculino e feminino. A ausência de vias altamente representadas sugere que o sexo tem um impacto limitado nos mecanismos celulares globais, pelo menos no contexto dos tumores analisados.
+
+**Tipo de Tumor**
+
+Para a variável tipo de tumor, o gráfico apresentou uma maior densidade de termos significativos. Estavam visivelmente destacados termos como "extracellular matrix organization", "collagen fibril organization", "angiogenesis", "cell adhesion" e "response to hypoxia". Estes termos indicam que os genes diferencialmente expressos entre os tipos tumorais estão fortemente associados a processos extracelulares, estruturais e de resposta a alterações no ambiente celular, como a hipóxia. Estes resultados indicam que diferentes tipos de tumor apresentam perfis moleculares distintos, refletindo variações nos mecanismos biológicos subjacentes, o que poderá ser relevante para a definição de terapias direcionadas.
+
+**Ancestralidade**
+
+Apesar de ter um número relativamente baixo de DEGs (13), a análise evidenciou alguns termos significativamente enriquecidos. Os genes diferencialmente expressos parecem estar envolvidos em processos metabólicos específicos e resposta imune, sugerindo que a ancestralidade pode influenciar mecanismos biológicos subtis que, embora não dominantes, podem contribuir para variações fenotípicas observadas entre populações. Este resultado reforça a importância da diversidade genética na investigação.
+
+**Sobrevivência**
+
+Finalmente, a variável sobrevivência apresentou o maior número de termos enriquecidos, visíveis numa lista densa no gráfico correspondente. Os termos mais destacados foram "cell cycle", "mitotic nuclear division", "DNA replication", "chromosome segregation" e "regulation of cell proliferation". Estes termos sugerem, de forma clara pelas legendas, que os genes associados à sobrevivência estão envolvidos em processos celulares fundamentais ligados à divisão celular e à proliferação. Estes resultados apontam para uma forte associação entre a expressão génica e o prognóstico clínico dos pacientes, sugerindo a existência de potenciais assinaturas moleculares com valor prognóstico e possíveis alvos terapêuticos.
+
+
+
+## **6. Análise PCA**
+```{r, message=FALSE, warning=FALSE, fig.width=7, fig.height=5, results='asis'}
+# Usar todos os genes da matriz de expressão
+expr_all <- log_cpm  # log2 CPM
+
+# Transpor: linhas = amostras, colunas = genes
+expr_all_t <- t(expr_all)
+
+# PCA
+pca_res <- prcomp(expr_all_t, scale. = TRUE)
+
+# Criar diretório para salvar resultados se necessário
+dir.create("resultados_PCA", showWarnings = FALSE)
+
+# Loop pelas variáveis clínicas
+for (nome_var in names(fatores)) {
+  cat("### PCA para:", nome_var, "\n\n")
+  
+  grupo_var <- fatores[[nome_var]]
+  
+  # Alinhar amostras
+  amostras_comuns <- intersect(rownames(expr_all_t), names(grupo_var))
+  
+  if (length(amostras_comuns) < 2) {
+    cat("Variável", nome_var, "não tem amostras suficientes. Pulando.\n\n")
+    next
+  }
+  
+  grupo_valid <- grupo_var[amostras_comuns]
+  grupo_valid <- as.factor(grupo_valid)
+  
+  if (length(unique(grupo_valid)) < 2) {
+    cat("Variável", nome_var, "não tem pelo menos 2 grupos distintos. Pulando.\n\n")
+    next
+  }
+  
+  # Preparar dados PCA para o gráfico
+  pca_data <- as.data.frame(pca_res$x[amostras_comuns, 1:2])
+  pca_data$grupo <- grupo_valid
+  
+  # Gráfico PCA
+  p <- ggplot(pca_data, aes(x = PC1, y = PC2, color = grupo)) +
+    geom_point(size = 3, alpha = 0.8) +scale_fill_manual(values = palette_3) + theme_bw() +
+    labs(title = paste("PCA -", nome_var),
+         x = "PC1", y = "PC2")
+    
+  
+  print(p)  # Mostrar no HTML
+
+  cat("\n\n---\n\n")  # Separador entre gráficos no relatório
+}
+```
+
+
+A Análise de Componentes Principais (PCA) foi aplicada com o objetivo de reduzir a dimensionalidade dos dados de expressão gênica e identificar padrões de variação global entre as amostras. Esta técnica estatística transforma um conjunto de variáveis possivelmente correlacionadas em um novo conjunto de variáveis não correlacionadas, denominadas componentes principais. A partir disso, foi possível visualizar a distribuição das amostras segundo variáveis clínicas relevantes, como sexo, tipo tumoral, ancestralidade e estado de sobrevivência, facilitando a identificação de possíveis agrupamentos e relações entre os dados.
+
+**Sexo**
+
+O gráfico mostra dois grupos parcialmente sobrepostos ao longo dos componentes principais PC1 e PC2. Não há uma separação clara entre os sexos, o que indica que, com base na expressão global dos genes, não existe uma forte variação entre os grupos masculino e feminino. Portanto, o sexo não parece ser um fator determinante nos principais padrões de variação da expressão genética nesse conjunto de dados.
+
+**TipoTumor**
+
+Neste gráfico, observa-se uma separação mais evidente entre os subtipos tumorais. Os grupos ocupam regiões distintas no plano PC1 vs. PC2, o que sugere que o tipo de tumor está associado a variações expressivas no perfil transcriptômico. Isso reforça a ideia de que os subtipos de LGG possuem assinaturas moleculares distintas, consistentes com a heterogeneidade molecular previamente descrita no trabalho.
+
+**Ancestralidade**
+
+Apesar de uma predominância de indivíduos com ancestralidade europeia, o gráfico revela alguma sobreposição entre os grupos, com tendência a agrupamentos por ancestralidade. Isto indica que pode haver variações genômicas associadas à ancestralidade, embora o impacto sobre a expressão global pareça menos acentuado do que no caso do tipo tumoral.
+
+**Sobrevivência**
+
+O gráfico mostra alta sobreposição entre os grupos de sobrevivência (vivo com/sem tumor e morto com tumor). Isso sugere que, com base apenas nos dois primeiros componentes principais, o status de sobrevivência não é fortemente refletido no padrão global de expressão genética. É possível que diferenças mais discretas estejam presentes em componentes secundários ou em subconjuntos de genes específicos.
+
+```{r, echo=F}
+palette_3 <- c("#fd7f6f", "#7eb0d5", "#b2e061", "#bd7ebe", "#ffb55a", "#ffee65", "#beb9db", "#fdcce5", "#8bd3c7")
+```
+
+## **7. Análise UMAP com PC´s**
+```{r pca-plot, fig.height=5, fig.width=7, message=FALSE, warning=FALSE, results='asis'}
+
+# Reduzir para 30 componentes antes do UMAP
+pca_matrix <- pca_res$x[, 1:30]
+
+# UMAP diretamente sobre os PCs
+set.seed(123)  # para reprodutibilidade
+umap_res <- umap(pca_matrix, n_neighbors = 15, min_dist = 0.1, metric = "euclidean")
+
+# Converter resultado UMAP para data frame com nomes de amostras
+rownames(umap_res) <- rownames(expr_all_t)
+umap_df <- as.data.frame(umap_res)
+colnames(umap_df) <- c("UMAP1", "UMAP2")
+
+
+# Loop pelas variáveis clínicas 
+for (nome_var in names(fatores)) {
+  cat("### UMAP para:", nome_var, "\n\n")
+  
+  grupo_var <- fatores[[nome_var]]
+  amostras_comuns <- intersect(rownames(umap_df), names(grupo_var))
+  
+  grupo_valid <- as.factor(grupo_var[amostras_comuns])
+  umap_plot_df <- umap_df[amostras_comuns, ]
+  umap_plot_df$Grupo <- grupo_valid
+
+  # Gráfico
+  p <- ggplot(umap_plot_df, aes(x = UMAP1, y = UMAP2, color = Grupo)) +
+    geom_point(size = 3, alpha = 0.8) +
+    theme_bw() +
+    labs(title = paste("UMAP -", nome_var))
+  
+  print(p)
+  
+  cat("\n\n---\n\n")
+}
+```
+
+O UMAP (Uniform Manifold Approximation and Projection) é uma técnica de redução de dimensionalidade não linear que, tal como o t-SNE, é particularmente eficaz para visualizar dados de alta dimensão. Baseia-se em princípios matemáticos da topologia e da teoria dos grafos, procurando preservar tanto a estrutura local quanto a global dos dados. Em contraste com métodos lineares como o PCA, o UMAP é capaz de revelar padrões complexos e não lineares nos dados, o que o torna especialmente útil para explorar agrupamentos naturais ou separações entre classes, sendo comum utilizar PCA numa primeira fase de pré-processamento de forma a reduzir o ruído e acelerar cálculos posteriores. Neste trabalho foi assim que procedemos realizando UMAP sobre os PCs obtidos posteriormente. 
+
+**Sexo**
+
+Na visualização UMAP baseada nos componentes principais, os grupos Female e Male apresentam uma distribuição amplamente sobreposta. Não se observa uma separação clara entre os sexos, indicando que o fator "Sexo" não exerce uma influência dominante sobre as principais variações capturadas nos dados. 
+
+**Tipo de Tumor**
+
+Na análise UMAP com base nos tipos tumorais, observam-se regiões parcialmente sobrepostas entre os grupos Astrocytoma, Oligoastrocytoma e Oligodendroglioma. Ainda que exista algum grau de separação, há uma interpenetração considerável entre os grupos, indicando que as características extraídas não são completamente discriminantes neste espaço reduzido. O UMAP manteve a coesão local de alguns subgrupos, mas a sobreposição sugere proximidade fenotípica ou genômica entre os tumores.
+
+**Ancestralidade**
+
+No gráfico UMAP de Ancestria, os grupos AFR, EAS e SAS formam aglomerados localizados e visualmente distintos. O grupo EUR também apresenta alguma separação, mas está mais disperso em comparação com os demais, ocupando uma área relativamente ampla. Os grupos mistos, como AFR_ADMIX, EUR_ADMIX e SAS_ADMIX, aparecem distribuídos em zonas de transição, com sobreposição parcial entre si e com seus grupos de origem. Embora existam padrões visíveis, a separação entre todos os grupos não é completa, e há regiões com mistura significativa.
+
+**Sobrevivência**
+
+Neste gráfico, avaliamos a separação dos indivíduos com base no estado de sobrevivência. Nota-se alguma sobreposição entre os dois grupos ("ALIVE OR DEAD TUMOR FREE" vs. "DEAD WITH TUMOR"), embora existam tendências de agrupamento. Isto sugere que podem existir padrões moleculares ou genéticos associados ao prognóstico, ainda que estes não sejam tão fortemente delineados como noutros casos.
+
+
+## **8. Análise T-SNE com PC´s**
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# t-SNE
+set.seed(123)
+tsne_res <- Rtsne(pca_matrix, dims = 2, perplexity = 30, verbose = FALSE)
+tsne_df <- as.data.frame(tsne_res$Y)
+rownames(tsne_df) <- rownames(pca_matrix)
+colnames(tsne_df) <- c("tSNE1", "tSNE2")
+
+# Loop pelas variáveis clínicas
+for (nome_var in names(fatores)) {
+  cat("### t-SNE para:", nome_var, "\n\n")
+  
+  grupo_var <- fatores[[nome_var]]
+  amostras_comuns <- intersect(rownames(tsne_df), names(grupo_var))
+  
+  grupo_valid <- as.factor(grupo_var[amostras_comuns])
+  tsne_plot_df <- tsne_df[amostras_comuns, ]
+  tsne_plot_df$Grupo <- grupo_valid
+
+  # Gráfico
+  p <- ggplot(tsne_plot_df, aes(x = tSNE1, y = tSNE2, color = Grupo)) +
+    geom_point(size = 3, alpha = 0.8) +
+    theme_bw() + labs(title = paste("t-SNE -", nome_var))
+
+  # Mostrar e salvar
+  print(p)
+  
+  cat("\n\n---\n\n")
+}
+
+
+```
+O t-SNE é uma técnica de redução de dimensionalidade não linear que transforma distâncias entre pontos de alta dimensão em distribuições de probabilidade, tanto no espaço original quanto no projetado. O seu principal objetivo é preservar as relações de vizinhança local, favorecendo a visualização de agrupamentos. No entanto, esse foco local compromete a interpretação das distâncias globais e pode distorcer o posicionamento relativo entre grupos. Neste trabalho, o t-SNE foi aplicado sobre os componentes principais do PCA, visando explorar padrões de proximidade entre amostras com base nas características mais relevantes.
+
+**Sexo**
+
+O gráfico t-SNE para a variável Sexo mostra os grupos Female e Male altamente sobrepostos. Ambos os grupos ocupam praticamente o mesmo espaço projetado, com distribuição semelhante. Não há separação visível entre os dois. A variável Sexo não se diferencia visualmente neste gráfico.
+
+**Tipo de Tumor**
+
+No gráfico t-SNE para o Tipo de Tumor, observa-se uma separação visual parcial entre os grupos Oligodendroglioma e Astrocytoma, que tendem a ocupar regiões distintas. No entanto, os dois grupos ainda apresentam alguma proximidade nas bordas. O grupo Oligoastrocytoma aparece mais disperso e sobreposto aos outros dois, ocupando uma zona intermediária. Portanto, embora a separação entre os três grupos não seja completa, há evidência visual de distinção entre pelo menos dois deles.
+
+**Ancestralidade**
+
+O gráfico t-SNE de Ancestralidade mostra que alguns grupos como AFR, EAS e SAS formam aglomerados minimamente definidos e localizados. No entanto, o grupo EUR está amplamente espalhado, ocupando grande parte do espaço projetado, o que dificulta a visualização de fronteiras claras e evidencia uma baixa coesão interna. Grupos como EUR_ADMIX e outros mistos aparecem dispersos e sobrepostos em zonas de transição. Apesar de existirem regiões bem delimitadas, a dominância visual de EUR compromete a separação global entre os grupos.
+
+**Sobrevivência**
+
+No gráfico t-SNE de Sobrevivência, os dois grupos ("0: ALIVE OR DEAD TUMOR FREE" e "1: DEAD WITH TUMOR") estão distribuídos de forma misturada. Há algumas zonas com predominância de um grupo, mas no geral, os dois compartilham o espaço. A separação entre os grupos é fraca ou inexistente na projeção t-SNE.
+
+
+## **9. UMAP vs T-SNE**
+
+Ao aplicar tanto o UMAP como o t-SNE sobre os componentes principais obtidos através do PCA, torna-se possível comparar ambas as técnicas de redução de dimensionalidade e avaliar os resultados à luz do seu funcionamento. Esta comparação permite, inclusive, refletir sobre qual dos métodos pode ser mais útil e vantajoso consoante o objetivo da análise.
+
+Tanto o UMAP (Uniform Manifold Approximation and Projection) quanto o t-SNE (t-distributed Stochastic Neighbor Embedding) são métodos projetados para reduzir dados de alta dimensão a um espaço bidimensional, facilitando a visualização. Apesar de objetivos semelhantes, os dois algoritmos diferem significativamente na forma como operam e no tipo de estrutura que tendem a preservar.
+
+Na prática, essa diferença refletiu-se nas visualizações obtidas: o UMAP gerou projeções mais organizadas globalmente, com os agrupamentos dispostos de forma mais contínua no espaço. Já o t-SNE apresentou melhor separação local em alguns casos, como em certos subgrupos tumorais, mas também originou distribuições excessivamente dispersas, dificultando a interpretação.
+
+Em resumo, o UMAP revelou-se mais informativo para observar relações globais entre grupos, enquanto o t-SNE se destacou na identificação de estruturas locais. Assim, a escolha entre os dois métodos deve considerar o foco da análise: se o objetivo for explorar padrões locais com alta fidelidade, o t-SNE é mais indicado; se houver interesse em manter uma visão mais equilibrada entre estrutura local e global, o UMAP é preferível.
+
+
+
+## **10. Clustering**
+
+**Clustering hierárquico**
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Selecionar os 30 genes com menor p-value
+top_30 <- head(deg_table[order(deg_table$PValue), ], 30)
+
+# Usar rownames como identificador dos genes
+gene_ids <- rownames(top_30)
+
+# Obter dados de expressão para os genes válidos
+genes_matrix <- expr_all[gene_ids, ]
+
+# Normalizar por gene (z-score)
+genes_matrix_scaled <- t(scale(t(genes_matrix)))
+
+# Clustering hierárquico
+dist_matrix <- dist(genes_matrix_scaled)
+hc <- hclust(dist_matrix, method = "complete")
+
+# Plotar dendrograma
+plot(hc,
+     main = paste("Clustering hierárquico de", length(gene_ids), "genes mais significativos"),
+     ylab = "Distância Euclidiana",
+     xlab = "",
+     sub = "")
+
+
+
+```
+O dendrograma gerado representa o agrupamento hierárquico dos 30 genes mais significativos, selecionados com base nos menores valores de p-value da análise de expressão diferencial. O agrupamento foi realizado com base nos perfis de expressão desses genes ao longo das diferentes amostras, considerando a distância euclidiana como medida de dissimilaridade.
+
+A estrutura do dendrograma revela que alguns genes apresentam padrões de expressão muito semelhantes entre si, sendo agrupados em níveis inferiores da hierarquia, ou seja, em pontos mais baixos do eixo vertical. Isso indica que esses genes possuem comportamentos similares nas amostras analisadas, o que pode sugerir uma co-regulação ou participação em processos biológicos comuns. Por exemplo, é possível observar a formação de subgrupos distintos com genes fortemente correlacionados, enquanto outros grupos se formam apenas em níveis mais elevados de distância, indicando uma menor similaridade entre seus perfis de expressão.
+
+O eixo vertical do dendrograma, que representa a distância euclidiana, alcança valores relativamente altos (acima de 30), o que sugere uma considerável variabilidade nos perfis de expressão entre os genes analisados. Essa heterogeneidade é esperada quando os genes selecionados atuam em diferentes vias ou processos celulares.
+
+De forma geral, a análise do dendrograma mostra que os genes mais significativamente alterados não são homogêneos em sua expressão, mas sim organizam-se em subgrupos que refletem possíveis padrões biológicos relevantes. 
+
+**Clustering K-means**
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Selecionar os 30 genes com menor p-value
+top_30 <- head(deg_table[order(deg_table$PValue), ], 30)
+
+# Usar rownames como identificador dos genes
+gene_ids <- rownames(top_30)
+
+# Filtrar dados de expressão
+genes_matrix <- expr_all[rownames(expr_all) %in% gene_ids, ]
+
+# Normalizar por gene (z-score por linha)
+genes_matrix_scaled <- t(scale(t(genes_matrix)))
+
+# Método do cotovelo para escolher o número ideal de clusters
+fviz_nbclust(genes_matrix_scaled, kmeans, method = "wss") +
+  labs(title = "Número ótimo de clusters\nMétodo do Cotovelo")
+
+
+set.seed(123)
+k <- 3
+kmeans_result <- kmeans(genes_matrix_scaled, centers = k, nstart = 25)
+
+# Visualizar o resultado do clustering
+fviz_cluster(kmeans_result, data = genes_matrix_scaled,
+             main = "Clustering K-means dos 30 genes mais significativos",
+             geom = "point", ellipse.type = "convex", 
+             palette = palette_3,repel=TRUE)
+
+```
+
+**Método do Cotovelo**
+
+Para determinar o número ideal de grupos no clustering k-means, foi utilizado o método do cotovelo, que consiste em avaliar graficamente a redução do erro de agrupamento à medida que se aumenta o número de clusters. O gráfico resultante apresenta, no eixo Y, a soma total dos quadrados intra-grupos (Total Within Sum of Squares), enquanto o eixo X mostra os valores testados para o número de clusters (de 1 a 10).
+
+A curva descendente mostra que o aumento do número de clusters melhora a separação entre os genes, reduzindo a variabilidade dentro de cada grupo. No entanto, após um determinado ponto, os ganhos adicionais tornam-se mínimos. Esse ponto de inflexão é conhecido como “cotovelo”. No gráfico analisado, esse cotovelo ocorre por volta de k = 3, indicando que três clusters são suficientes para representar bem a estrutura dos dados sem acrescentar complexidade desnecessária ao modelo.
+
+**Analise Clustering K-means**
+
+O gráfico de clustering k-means com k = 3 mostra a segmentação dos 30 genes mais significativos com base nos seus perfis de expressão normalizados. A projeção dos dados em duas dimensões principais (Dim1 e Dim2) preserva boa parte da variabilidade, com Dim1 explicando 18.2% e Dim2 10.7%, totalizando aproximadamente 29% da informação original.
+
+A aplicação do algoritmo resultou em três grupos visualmente bem definidos:
+
+ - Cluster 1 (azul): Apresenta distribuição moderadamente compacta, com genes agrupados em torno de padrões semelhantes. Sua localização no gráfico indica expressão homogênea, mas distinta dos demais grupos.
+
+ - Cluster 2 (amarelo): Agrupamento mais disperso, situado à esquerda do gráfico. Essa dispersão sugere uma maior heterogeneidade entre os genes, podendo refletir perfis de expressão mais variados ou a presença de genes com comportamento atípico.
+
+ - Cluster 3 (cinza): Ocupa uma posição intermediária no gráfico e apresenta relativa coesão. Pode representar genes com perfis parcialmente sobrepostos aos dos demais grupos.
+
+A separação entre os três clusters reforça a ideia de que os genes selecionados exibem padrões de expressão diferenciados, o que pode refletir funções biológicas específicas, participação em vias distintas ou respostas a diferentes condições experimentais. Essa estrutura de agrupamento pode servir como base para análises funcionais mais aprofundadas, como enriquecimento de termos GO ou identificação de biomarcadores potenciais.
+
+
+
+
+## **11. Análise supervisionada**
+```{r message=FALSE, warning=FALSE, fig.width=12, results='asis'}
+
+# 1. Modelos possíveis 
+# A. Random Forest
+# B. Support Vector Machine
+# c. XGBoost
+
+# 2. Treino/teste
+# A. train_test_split
+# B. cross-validation
+
+# 3. Avaliação (métricas)
+# A. Accuracy
+# B. F1-score
+# C. AUT-ROC
+
+
+# Preparar dados clínicos e fatores
+clean_data_for_2part <- clini_data_no_na
+
+f_sex <- as.factor(clean_data_for_2part$sex)
+names(f_sex) <- clean_data_for_2part$sample_ID
+
+f_cancer <- as.factor(clean_data_for_2part$cancer_type)
+names(f_cancer) <- clean_data_for_2part$sample_ID
+
+f_ancestralidade <- as.factor(clean_data_for_2part$ancestry)
+names(f_ancestralidade) <- clean_data_for_2part$sample_ID
+
+f_survival <- as.factor(clean_data_for_2part$surv_status)
+names(f_survival) <- clean_data_for_2part$sample_ID
+
+fatores <- list(
+  Sexo = f_sex,
+  TipoTumor = f_cancer,
+  Ancestralidade = f_ancestralidade,
+  Sobrevivencia = f_survival
+)
+
+# Base trainControl parameters
+base_ctrl <- list(
+  method = "cv",
+  number = 5,
+  classProbs = TRUE,
+  savePredictions = "all"
+)
+
+ctrl <- do.call(trainControl, base_ctrl)
+ctrl1 <- do.call(trainControl, c(base_ctrl, list(summaryFunction = multiClassSummary)))
+
+```
+
+
+### **11.1 Random Forest**
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## A. Random Forest com smote ---- SURVIVAL
+
+# Verificar consistência dos dados
+common_samples <- intersect(colnames(expr_all), names(f_survival))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_survival[common_samples]
+
+# Criar dataframe para modelar
+data_model <- as.data.frame(t(logCPM_sub))  # Genes como colunas, amostras como linhas
+data_model$SurvivalStatus <- factor(labels)
+
+# Garantir que os levels são válidos para SMOTE
+levels(data_model$SurvivalStatus) <- make.names(levels(data_model$SurvivalStatus))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$SurvivalStatus, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Aplicar SMOTE
+# Remover colunas não numéricas
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+
+# SMOTE para balancear classe
+smote_result_rf <- SMOTE(trainData_numeric, trainData$SurvivalStatus, K = 3, dup_size = 2)
+smote_data_rf <- smote_result_rf$data
+
+# Ajustar nomes das colunas
+colnames(smote_data_rf)[ncol(smote_data_rf)] <- "SurvivalStatus"
+smote_data_rf$SurvivalStatus <- factor(smote_data_rf$SurvivalStatus, 
+                                       levels = levels(trainData$SurvivalStatus))
+
+# Treinar modelo Random Forest
+set.seed(123)
+fit_rf1 <- train(SurvivalStatus ~ ., data = smote_data_rf, method = "rf", 
+                trControl = ctrl,
+                tuneGrid = expand.grid(mtry = 2),  # Ajuste do número de variáveis
+                ntree = 100)  # Número de árvores ajustado
+
+# Avaliação no teste
+pred_rf <- predict(fit_rf1, testData)
+conf_matrix <- confusionMatrix(pred_rf, testData$SurvivalStatus)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- 171 previsões corretas para "XO.ALIVE.OR.DEAD.TUMOR.FREE".
+- 17 previsões corretas para "X1.DEAD.WITH.TUMOR".
+- 14 erros ao classificar "X1.DEAD.WITH.TUMOR" como "XO.ALIVE.OR.DEAD.TUMOR.FREE".
+- 38 erros ao classificar "XO.ALIVE.OR.DEAD.TUMOR.FREE" como "X1.DEAD.WITH.TUMOR".
+- Modelo acerta a maioria dos casos da classe "XO.ALIVE.OR.DEAD.TUMOR.FREE", mas apresenta erro significativo ao prever a classe "X1.DEAD.WITH.TUMOR", tanto por falsos negativos quanto falsos positivos.
+- Existe desequilibrio na performance entre as classes, o que pode indicar viés para a classe mais frequente. 
+- Mesmo com SMOTE, há dificuldade de separação clara entre as clases.
+
+Métricas de Desempenho:
+
+- Accuracy: 78.33% → Boa taxa de acertos globais.
+- Kappa: 0.2757 → Concordância moderada a baixa entre as previsões e a realidade.
+- Especificidade: 0.3091 → Tem dificuldade em identificar corretamente os negativos reais.
+- Balanced Accuracy: 0.6167 → Indica desempneho desequilibrado entre sensibilidade e especificidade.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Precision, Recall, F1
+positive_class <- "X0.ALIVE.OR.DEAD.TUMOR.FREE"
+
+precision <- posPredValue(pred_rf, testData$SurvivalStatus, positive = positive_class)
+recall <- sensitivity(pred_rf, testData$SurvivalStatus, positive = positive_class)
+f1 <- 2 * (precision * recall) / (precision + recall)
+
+# Print precision, recall,F1
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", round(f1, 3), "\n")
+```
+
+- Recall: 0.9243 → Identifica 91.89% dos casos positivos corretamente.
+- Precisão: 0.8182 → Quando prevê "XO.ALIVE.OR.DEAD.TUMOR.FREE", está correto 81.73% das vezes.
+- F1 Score: 0.868 → Indica um bom equilíbrio entre precisão e recall.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Calcular AUC e Curva ROC
+roc_curve <- roc(testData$SurvivalStatus, as.numeric(pred_rf))
+auc_score <- auc(roc_curve)
+print(paste("AUC Score:", auc_score))
+
+plot(roc_curve, col = palette_3, main = "ROC Curve for Random Forest (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva ROC está acima da linha diagonal, mas não perfeitamente colada ao canto superior esquerdo. Isso significa que o modelo é melhor que o acaso, mas não excelente em todas as faixas de sensibilidade/especificidade.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5).
+- A curva ROC do modelo está consistentemente acima, o que confirma capacidade preditiva real e a distância em relação à diagonal não é tão grande quanto o ideal (AUC > 0.8).
+
+AUC Score:
+
+- AUC: 0.6167 → O modelo tem capacidade razoável de discrimicação entre classes, mas está abaixo do ideal (abaixo de 0.8).
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Ver importância dos genes
+importance <- varImp(fit_rf1)
+
+# Extract variable importance as data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Select top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Gene mais relevante: 22944, com um peso de 100. Este gene tem um impacto significativo na classificação do modelo.
+- Os primeiros 5 genes têm importância considerável (acima de 60), sugerindo que há fortes fatores genéticos associados à sobreviviência com ou sem tumor
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Visualizar distribuição de probabilidades
+prob_rf <- predict(fit_rf1, testData, type = "prob")
+boxplot(prob_rf[,1] ~ testData$SurvivalStatus, col = palette_3, 
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+```
+Boxplot - Distribuição das Probabilidades:
+
+Classe "X0.ALIVE.OR.DEAD.TUMOR.FREE" (vermelho):
+
+- A maioria das previsões tem probabilidades acima de 0.75, indicando alta confiança do modelo nesta classe.
+- Existem outliers abaixo de 0.45, mostrando ambiguidade em alguns casos, mas não predominante.
+
+Classe "X1.DEAD.WITH.TUMOR" (azul):
+
+- A distribuição é mais espalhada, com valores variando de 0.45 a 0.7.
+- A mediana está próxima de 0.6, revelando que o modelo não tem muita certeza ao prever essa classe. Existem muitos casos ambíguos, o que contribui para os erros observados na matriz de confusão.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+## A. Random Forest com SMOTE ---- SEX
+
+# Verificar consistência dos dados
+common_samples <- intersect(colnames(expr_all), names(f_sex))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_sex[common_samples]
+
+# Criar dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))
+data_model$Sex <- factor(labels)
+
+# Garantir que os niveis são válidos para SMOTE
+levels(data_model$Sex) <- make.names(levels(data_model$Sex))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Sex, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Aplicar SMOTE
+# Remover colunas não numéricas
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+
+# SMOTE para balancear classe
+smote_result_rf <- SMOTE(trainData_numeric, trainData$Sex, K = 3, dup_size = 2)
+smote_data_rf <- smote_result_rf$data
+
+# Ajustar nomes das colunas
+colnames(smote_data_rf)[ncol(smote_data_rf)] <- "Sex"
+smote_data_rf$Sex <- factor(smote_data_rf$Sex, levels = levels(trainData$Sex))
+
+# Treinar modelo Random Forest
+set.seed(123)
+fit_rf2 <- train(Sex ~ ., data = smote_data_rf, method = "rf", 
+                trControl = ctrl, 
+                tuneGrid = expand.grid(mtry = 2),
+                ntree = 100)
+
+# Avaliação no teste
+pred_rf <- predict(fit_rf2, testData)
+conf_matrix <- confusionMatrix(pred_rf, testData$Sex)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de confusão:
+
+- 73 previsões corretas para "Female" e 38 previsões corretas para "Male".
+- 96 erros ao classificar "Female" como "Male".
+- 33 erros ao classificar "Male" como "Female".
+
+Modelo acerta menos de metade da classe "Female" e possui um desempenho ligeiramente melhor para a classe "Male", mas esta longe de ser ideal. 
+A aplicação de SMOTE não foi suficiente para corrigir o desequílibrio ou melhorar o desempenho
+
+Métricas de Desempenho:
+
+- Accuracy: 46.25% → o modelo acerta menos de metade de todos os casos.
+- Kappa: -0.02612 → desempenho abaixo do modelo aleatório.
+- Especificidade: 0.2836 → o modelo tem dificuldade em reconhecer a classe "Male".
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# F1, Recall, precision
+testData$Sex <- factor(testData$Sex)                       
+pred_rf <- factor(pred_rf, levels = levels(testData$Sex))  
+
+# Define positive class
+positive_class <- "Female"
+
+# Check precision e recall para classe positiva
+precision <- posPredValue(pred_rf, testData$Sex, positive = positive_class)
+recall <- sensitivity(pred_rf, testData$Sex, positive = positive_class)
+
+# Print precision e recall
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+```
+
+- Precisão: 0.432 → Quando o modelo prevê "Female", está correto 43.2% das vezes.
+- Recall: 0.6887 → Identifica 68.87% dos casos "Female" corretamente.
+- F1 Score: 0.5309 → Indica um modelo que não é equilibrado nem eficaz.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# F1 score
+if (!is.na(precision) && !is.na(recall) && (precision + recall) > 0) {
+  f1 <- 2 * (precision * recall) / (precision + recall)
+  cat("F1 Score:", round(f1, 3), "\n")
+} else {
+  cat("F1 Score cannot be computed due to missing precision or recall.\n")
+}
+
+# Calcular AUC e Curva ROC
+roc_curve <- roc(testData$Sex, as.numeric(pred_rf))
+auc_score <- auc(roc_curve)
+print(paste("AUC Score:", auc_score))
+
+plot(roc_curve, col = palette_3, main = "ROC Curve for Random Forest (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva está abaixo da diagonal, indicando desempenho aleatório, o que reflete incapacidade do modelo em distinguir corretamente entre as classes.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). Como a curva do modelo está abaixo da diagonal, o modelo tem desempenho inferior ao acaso, o que é um forte sinal de alerta.
+
+AUC Score:
+
+- AUC: 0.4861 → Não consegue separar eficazmente as classes "Female" e "Male"
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Ver importância dos genes
+importance <- varImp(fit_rf2)
+
+# Extrair variavel importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Gene mais relevante: 8226 com um peso de 100 e 7317 com um peso de 99, os quais dominam completamente a decisão do modelo.
+- Outros genes contribuem em menor escala, reforçando que a classificação depende fortemente de um gene específico.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Visualizar distribuição de probabilidades
+prob_rf <- predict(fit_rf2, testData, type = "prob")
+boxplot(prob_rf[,1] ~ testData$Sex, 
+        col = palette_3, 
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+
+
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe "Female" (vermelho):
+
+- Possui uma mediana perto dos 0.55.
+- Raros outliers acima de 0.8, que indicam casos menos certos, mas ainda dentro da margem esperada
+
+Classe "Male" (azul):
+
+- Possui uma mediana de 0.55.
+- Poucos outliers acima de 0.8.
+
+A proximidade entre as distribuições de probabilidade para "Female" e "Male" mostra que o modelo tem dificuldade em separar as classes com confiança. 
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+## A. Random Forest com SMOTE ---- Ancestralidade
+
+# Verificar consistência dos dados
+common_samples <- intersect(colnames(expr_all), names(f_ancestralidade))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_ancestralidade[common_samples]
+
+# Criar dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))  
+data_model$Ancestralidade <- factor(labels)
+
+# Garantir que os levels são válidos para SMOTE
+levels(data_model$Ancestralidade) <- make.names(levels(data_model$Ancestralidade))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Ancestralidade, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Conta ocorrencias por classe
+class_counts <- table(trainData$Ancestralidade)
+
+# Filtrar classes <= 5 samples
+valid_classes <- names(class_counts[class_counts >= 5])
+trainData <- trainData[trainData$Ancestralidade %in% valid_classes, ]
+
+# Niveis fatoriais atualizados
+trainData$Ancestralidade <- factor(trainData$Ancestralidade)
+
+# Smote
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+min_class_size <- min(table(trainData$Ancestralidade))
+K_value <- max(1, min_class_size - 1)
+
+smote_result_rf <- SMOTE(trainData_numeric, trainData$Ancestralidade, K = K_value, dup_size = 2)
+smote_data_rf <- smote_result_rf$data
+
+colnames(smote_data_rf)[ncol(smote_data_rf)] <- "Ancestralidade"
+smote_data_rf$Ancestralidade <- factor(smote_data_rf$Ancestralidade, levels = levels(trainData$Ancestralidade))
+smote_data_rf <- na.omit(smote_data_rf)
+
+
+# Treinar modelo Random Forest
+set.seed(123)
+fit_rf3 <- train(Ancestralidade ~ ., data = smote_data_rf, method = "rf", 
+                trControl = ctrl1,
+                tuneGrid = expand.grid(mtry = 2),
+                ntree = 100)
+
+# Avaliação no teste
+pred_rf <- predict(fit_rf3, testData)
+true_labels <- testData$Ancestralidade
+
+# Confusion Matrix
+all_levels <- union(levels(factor(pred_rf)), levels(factor(true_labels)))
+pred_rf <- factor(pred_rf, levels = all_levels)
+true_labels <- factor(true_labels, levels = all_levels)
+conf_matrix <- confusionMatrix(pred_rf, true_labels)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- 218 previsões corretas para "EUR", mas teve dificuldades nas outras classes.
+- Confirma que o modelo está enviesado para prever EUR corretamente, mas falha nas outras classes
+
+Métricas de Desempenho:
+
+- Accuracy: 0.9121 → Alta taxa, no entanto esta enviasada pela dominância da classe "EUR".
+- AccuracyLower: 0.8688 e AccuracyUpper: 0.9448 → accuracy real do modelo pode variar nesse intervalo que representa uma boa estabilidade no desempenho
+- AccuracyNull: 0.9121 → o modelo pode estar apenas a prever a classe dominante.
+- Kappa: 0 → indica que o modelo não está a prever melhor do que um classificador aleatório.
+- Especificidade: 0 → Não identifica corretamente os casos negativos.
+- Balanced Accuracy: 0.5 → total desequilíbrio entre classes.
+- p-value da accuracy (0.5577) indica que não há diferença estatística significativa entre o modelo e um classificador aleatório.
+- McNemarPValue está como NA, o que pode indicar que o teste não foi realizado ou não é aplicável neste caso.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Calcular métricas por classe
+precision_vec <- diag(conf_matrix$table) / colSums(conf_matrix$table)
+recall_vec <- diag(conf_matrix$table) / rowSums(conf_matrix$table)
+f1_vec <- ifelse((precision_vec + recall_vec) > 0,
+                 2 * (precision_vec * recall_vec) / (precision_vec + recall_vec),
+                 NA)
+
+f1_scores <- data.frame(
+  Class = rownames(conf_matrix$table),
+  Precision = round(precision_vec, 3),
+  Recall = round(recall_vec, 3),
+  F1 = round(f1_vec, 3)
+)
+
+# Mostrar tabela de métricas
+knitr::kable(f1_scores, caption = "Precision, Recall, and F1 Score per Class")
+```
+
+- Precisão: 0.9121 → Prevê apenas a classe "EUR" com alta confiança.
+- Recall: 1 → Identifica bem apenas a classe "EUR".
+- F1 Score: 0.954  → Indica um score muito alto, pois reflete apenas a performance da classe dominante.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+roc_curve <- roc(testData$Ancestralidade, as.numeric(pred_rf))
+auc_score <- auc(roc_curve)
+print(paste("AUC Score:", auc_score))
+plot(roc_curve, col = palette_3, main = "ROC Curve for Random Forest (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva ROC tem um degrau simples, sobre a linha diagonal, sem separação clara entre classes.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). A curva do Random Forest está nessa linha, sugerindo que o modelo tem um desempenho limitado, com discriminação mínima apenas para a classe "EUR"
+
+AUC Score:
+
+- AUC: 0.5 → o modelo tem desempenho igual ao acaso, sem valor preditivo real.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Importância dos genes
+importance <- varImp(fit_rf3)
+
+# Extração variavel importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Genes mais relevantes: 114880 com um peso de 100.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.07), sugerindo que são os principais responsáveis pela decisão do modelo. 
+- O modelo pode estar dependente de poucos genes-chave, enquanto outros têm impacto reduzido. Isso pode indicar que algumas características podem ser removidas sem afetar o desempenho.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Visualização da distribuição de probabilidades 
+prob_rf <- predict(fit_rf3, testData, type = "prob")
+boxplot(prob_rf[,1] ~ testData$Ancestralidade, col = palette_3, 
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe AFR:
+
+- A mediana da probabilidade predita está próxima de 0.08.
+- O intervalo interquartil (IQR) varia entre aproximadamente 0.075 e 0.011, indicando baixa dispersão.
+- Não há outliers, sugerindo que o modelo prevê esta classe de forma consistente mas com baixa confiança.
+
+Outras classes:
+
+- AFR_ADMIX tem distribuição levemente mais ampla, mas ainda com baixa mediana (~0.05). 
+- AMR apresenta maior variação e com mediana ~0.09, mas dispersão elevada e baixa precisão.
+- EAS e EUR_ADMIX têm valores muito baixos (~0.01-0.05), refletindo baixa probabilidade predita, e previsão praticamente ausente. 
+- EUR exibe maior número de outliers acima de 0.2, com mediana perto dos 0.05, indicando que apesar de ser a classe mais frequentemente prevista, existem incertezas em algumas previsões. 
+- SAS e SAS_ADMIX mostram linhas planas indicando baixa variabilidade e occorrência esparsa. SAS_ADMIX tem apenas um valor fixo, sugerindo poucos ou um único exemplo.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## A. Random Forest com SMOTE ---- Cancer
+
+# Verificar consistência dos dados
+common_samples <- intersect(colnames(expr_all), names(f_cancer))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_cancer[common_samples]  # Ajustando para usar f_cancer corretamente
+
+# Criar dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))  # Genes como colunas, amostras como linhas
+data_model$Cancer <- factor(labels)  # Alterando nome para refletir f_cancer
+
+# Garantir que os levels são válidos para SMOTE
+levels(data_model$Cancer) <- make.names(levels(data_model$Cancer))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Cancer, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Aplicar SMOTE
+# Remover colunas não numéricas
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+
+# Encontrar o tamanho mínimo da classe
+min_class_size <- min(table(trainData$Cancer))
+
+# Ajustar K para evitar erro de SMOTE
+K_value <- max(1, min_class_size - 1)  # Garante que K seja pelo menos 1
+
+# Aplicar SMOTE com K ajustado
+smote_result_rf <- SMOTE(trainData_numeric, trainData$Cancer, K = K_value, dup_size = 2)
+smote_data_rf <- smote_result_rf$data
+
+# Ajustar nomes das colunas
+colnames(smote_data_rf)[ncol(smote_data_rf)] <- "Cancer"
+smote_data_rf$Cancer <- factor(smote_data_rf$Cancer, levels = levels(trainData$Cancer))
+
+# Remover valores ausentes
+smote_data_rf <- na.omit(smote_data_rf)
+
+# Treinar modelo Random Forest
+set.seed(123)
+fit_rf4 <- train(Cancer ~ ., data = smote_data_rf, method = "rf", 
+                trControl = ctrl1,
+                tuneGrid = expand.grid(mtry = 2),  # Ajuste do número de variáveis
+                metric = "ROC",
+                ntree = 100)  # Número de árvores ajustado
+
+# Avaliação no teste
+pred_rf <- predict(fit_rf4, testData)
+conf_matrix <- confusionMatrix(pred_rf, testData$Cancer)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- Astrocytoma: 44 corretos, 16 classificados como Oligoastrocytoma, 13 como Oligodendroglioma.
+- Oligoastrocytoma: 29 corretos, 46 classificados como Astrocytoma, 25 como Oligodendroglioma.
+- Oligodendroglioma: 48 corretos, 17 classificados como Oligoastrocytoma, 1 como Astrocytoma.
+
+Astrocytoma e Oligodendroglioma são razoavelmente bem classificados. Oligoastrocytoma tem o pior desempenho, frequentemente confundida com Astrocytoma. A distribuição de erros mostra alguma capacidade de distinção, mas com sobreposição nas características entre as classes.
+
+Métricas de Desempenho:
+
+- Accuracy: 0.5063 → O modelo classifica corretamente 50.63% dos exemplos, o que pode ser melhorado. 
+- Kappa: 0.2694 → Indica concordância moderada entre previsões e valores reais. 
+- Mcnemar's Test P-Value: 8.151e-06 → P-valor baixo, indicando diferenças estatisticamente significativas entre algumas classes.
+
+Especificidade: O modelo consegue distinguir melhor Oligodendroglioma das demais classes.
+- Astrocytoma: 0.8041
+- Oligoastrocytoma: 0.5989
+- Oligodendroglioma: 0.8824
+
+Balanced Accuracy: Astrocytoma e Oligodendroglioma têm desempenho razoável, sendo que Oligoastrocytoma tem a pior acurácia balanceada, indicando que o modelo tem dificuldades em prever essa classe corretamente.
+- Astrocytoma: 0.6438
+- Oligoastrocytoma: 0.5333
+- Oligodendroglioma: 0.7202
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Tabela confusion matrix 
+conf_table <- conf_matrix$table
+
+# Inicializa data frame para armazenar metricas
+class_metrics <- data.frame(Class = levels(testData$Cancer),
+                            Precision = numeric(length(levels(testData$Cancer))),
+                            Recall = numeric(length(levels(testData$Cancer))),
+                            F1_Score = numeric(length(levels(testData$Cancer))))
+
+# Ciclo sobre cada classe para calcular precisão, sensibilidade e F1 score
+for (class in levels(testData$Cancer)) {
+  # Verdadeiros Positivos (VP): Previsões corretas da classe
+  TP <- conf_table[class, class]
+  
+  # Falsos Positivos (FP): Previsões da classe, mas pertencem a outra
+  FP <- sum(conf_table[, class]) - TP
+  
+  # Falsos Negativos (FN): Pertencem à classe, mas foram previstos como outra
+  FN <- sum(conf_table[class, ]) - TP
+  
+  # Precisão: VP / (VP + FP)
+  precision <- ifelse((TP + FP) == 0, NA, TP / (TP + FP))
+  
+  # Sensibilidade (Recall): VP / (VP + FN)
+  recall <- ifelse((TP + FN) == 0, NA, TP / (TP + FN))
+  
+  # F1 Score: 2 * (Precisão * Sensibilidade) / (Precisão + Sensibilidade)
+  f1 <- ifelse(is.na(precision) | is.na(recall) | (precision + recall) == 0, NA, 2 * (precision * recall) / (precision + recall))
+  
+  # Guardar os resultados
+  class_metrics[class_metrics$Class == class, ] <- c(class, precision, recall, f1)
+}
+
+
+# Converter colunas numéricas
+class_metrics[, 2:4] <- lapply(class_metrics[, 2:4], as.numeric)
+
+# Round
+class_metrics_rounded <- class_metrics
+class_metrics_rounded[, 2:4] <- round(class_metrics_rounded[, 2:4], 3)
+
+# Tabela
+knitr::kable(class_metrics_rounded, caption = "Per-Class Performance Metrics (Precision, Recall, F1 Score)")
+```
+
+Recall: 
+
+- Astrocytoma: 0.4835
+- Oligoastrocytoma: 0.4677
+- Oligodendroglioma: 0.5581
+
+Precision:
+
+- Astrocytoma: 0.6027
+- Oligoastrocytoma: 0.29
+- Oligodendroglioma: 0.7273
+
+F1 Score: 
+
+- Astrocytoma: 0.5366
+- Oligoastrocytoma: 0.358
+- Oligodendroglioma: 0.6316
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Calcular AUC e Curva ROC
+roc_curve <- roc(testData$Cancer, as.numeric(pred_rf))
+auc_score <- auc(roc_curve)
+print(paste("AUC Score:", auc_score))
+
+plot(roc_curve, col = palette_3, main = "ROC Curve for Random Forest (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva segue um padrão escalonado, indicando que o modelo está a tomar decisões em diferentes limiares de classificação.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5).Como a curva do modelo está bem acima dessa linha, isso confirma que o modelo tem um desempenho significativamente melhor do que um classificador aleatório.
+
+- AUC Score: 0.6794 → Tem uma boa capacidade de distinguir entre as classes, especialmente Astrocytoma e Oligodendroglioma. No entanto, o modelo não é considerado útil (só acima de 0.75).
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Ver importância dos genes
+importance <- varImp(fit_rf4)
+
+# Extração variavel importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Genes mais relevantes: 126432 com um peso de 100 e Gene 5906 com peso 97.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 80), sugerindo que são os principais responsáveis pela decisão do modelo.
+- O modelo pode estar dependente de poucos genes-chave, enquanto outros têm impacto reduzido. Isso pode indicar que algumas características podem ser removidas sem afetar o desempenho.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Visualizar distribuição de probabilidades
+prob_rf <- predict(fit_rf4, testData, type = "prob")
+boxplot(prob_rf[,1] ~ testData$Cancer, col = palette_3, 
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Astrocytoma:
+
+- Mediana alta, indicando previsões confiantes e sem outliers, pelo que o modelo é estável e com alta confiança para esta classe.
+
+Oligoastrocytoma
+
+- Mediana mais baixa do que Astrocytoma e sem outliers, pelo que há menor confiança média nas previsões para esta classe.  
+
+Oligodendroglioma
+
+- Mediana mais baixa do que Oligoastrocytoma com baixa variablidade e outlier acima do 0.5. O modelo é de baixa confiância ao prever esta classe. 
+
+
+### **11.2 Support Vector Machine**
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+## B. Support Vector Machine com SMOTE ---- SURVIVAL
+
+# Preparar dados
+common_samples <- intersect(colnames(expr_all), names(f_survival))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_survival[common_samples]
+
+# Criar data frame com amostras como linhas e genes como colunas
+data_model <- as.data.frame(t(logCPM_sub))
+data_model$SurvivalStatus <- factor(labels)
+levels(data_model$SurvivalStatus) <- make.names(levels(data_model$SurvivalStatus))  # tornar nomes válidos
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$SurvivalStatus, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Aplicar SMOTE
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+smote_result <- SMOTE(trainData_numeric, target = trainData$SurvivalStatus, K = 3, dup_size = 2)
+smote_data <- smote_result$data
+colnames(smote_data)[ncol(smote_data)] <- "SurvivalStatus"
+smote_data$SurvivalStatus <- factor(smote_data$SurvivalStatus,
+                                    levels = levels(trainData$SurvivalStatus))
+
+# Treinar modelo SVM
+set.seed(123)
+fit_svm1 <- train(SurvivalStatus ~ ., data = smote_data, method = "svmRadial",
+                  trControl = ctrl,
+                  preProcess = c("center", "scale"),
+                  tuneLength=5,
+                  metric = "ROC")
+
+# Previsões no conjunto de teste
+# Garantir que os níveis são iguais
+testData$SurvivalStatus <- factor(testData$SurvivalStatus,
+                                  levels = levels(fit_svm1$trainingData$.outcome))
+pred_class <- predict(fit_svm1, testData)
+pred_class <- factor(pred_class, levels = levels(testData$SurvivalStatus))
+
+# Matriz de confusão
+confusion <- confusionMatrix(pred_class, testData$SurvivalStatus)
+pander::pander(confusion, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- 177 previsões corretas para "XO.ALIVE.OR.DEAD.TUMOR.FREE".
+- 12 previsões corretas para "X1.DEAD.WITH.TUMOR".
+- 8 erros ao classificar "X1.DEAD.WITH.TUMOR" como "XO.ALIVE.OR.DEAD.TUMOR.FREE".
+- 43 erros ao classificar "XO.ALIVE.OR.DEAD.TUMOR.FREE" como "X1.DEAD.WITH.TUMOR"
+
+Modelo tem boa capacidade de prever a classe "XO.ALIVE.OR.DEAD.TUMOR.FREE", mas mostra dificuldades consideráveis em identificar corretamente "X1.DEAD.WITH.TUMOR".
+
+Métricas de Desempenho:
+
+- Accuracy: 0.7875 → Classifica corretamente na maioria dos casos.
+- Kappa: 0.2253 → Indica um acordo fraco a moderado entre as previsões e os valores reais.
+- Especificidade: 0.2182 → O modelo tem dificultade em acertar os casos negativos.
+- Balanced Accuracy: 0.5875 → O modelo é melhor do que o aleatório, mas ainda pode ser melhorado.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Precision, Recall, F1
+positive_class <- "X0.ALIVE.OR.DEAD.TUMOR.FREE"
+precision <- posPredValue(pred_class, testData$SurvivalStatus, positive = positive_class)
+recall <- sensitivity(pred_class, testData$SurvivalStatus, positive = positive_class)
+f1 <- 2 * (precision * recall) / (precision + recall)
+
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", round(f1, 3), "\n")
+```
+
+- Recall: 0.9568 → Identifica 95.68% dos casos positivos corretamente.
+- Precisão: 0.8045 → Quando prevê "XO.ALIVE.OR.DEAD.TUMOR.FREE", está correto 80.45% das vezes.
+- F1 Score: 0.8741 → Indica um bom equilíbrio entre precisão e recall, mas reflete sobretudo a classe dominante.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Prever probabilidades
+pred_prob <- predict(fit_svm1, testData, type = "prob")
+
+# AUC
+correct_col <- grep("ALIVE.OR.DEAD.TUMOR.FREE", colnames(pred_prob), value = TRUE)
+roc_curve <- roc(response = testData$SurvivalStatus, predictor = pred_prob[[correct_col]])
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Curva ROC
+plot(roc_curve, col = palette_3, main = "ROC Curve for SVM (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva ROC está num padrão escalonado, indicando que o modelo está a tomar decisões em diferentes limiares de classificação.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5).
+- Como a curva ROC do modelo está bem acima dessa linha, isso confirma que o modelo tem valor preditivo real.
+
+AUC Score:
+- AUC: 0.7808 → O modelo tem capacidade razoável de distinguir entre as classes, mas não é perfeito (abaixo de 0.8).
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Variavel importance
+importance <- varImp(fit_svm1, scale = FALSE)
+
+# importance em data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+
+importance_df$Overall <- rowMeans(importance_df[, c("X0.ALIVE.OR.DEAD.TUMOR.FREE", "X1.DEAD.WITH.TUMOR")])
+
+# Sort por importance
+importance_df <- importance_df[order(-importance_df$Overall), ]
+
+# Seleciona top 20 
+top_20 <- head(importance_df, 20)
+
+# tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+# plot
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Gene mais relevante: 358 com um peso de 0.07793. Este gene tem um impacto significativo na classificação do modelo.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.07), sugerindo que são os principais responsáveis pela decisão do modelo
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Boxplot da distribuição de probabilidades
+df_plot <- data.frame(Prob = pred_prob[[correct_col]], Status = testData$SurvivalStatus)
+boxplot(Prob ~ Status, data = df_plot,
+        col = palette_3,
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+
+
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe "X0.ALIVE.OR.DEAD.TUMOR.FREE" (vermelho):
+
+- A maioria das previsões tem probabilidades próximas de 1, indicando alta confiança do modelo nesta classe.
+- Existem alguns outliers com probabilidades mais baixas (~0.9), sugerindo casos com menor certeza, possivelmente mais difíceis de classificar corretamente.
+
+Classe "X1.DEAD.WITH.TUMOR" (azul):
+
+- A distribuição é mais dispersa, com valores variando de 0.5 a 0.9.
+- A mediana está próxima de 0.8, indicando que o modelo não tem tanta certeza ao prever esta classe. Pode sugerir dificuldade na separação entre as classes, levando a previsões menos confiáveis.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+## B. Support Vector Machine com SMOTE ---- SEX
+
+# Preparar dados
+common_samples <- intersect(colnames(expr_all), names(f_sex))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_sex[common_samples]
+
+# Criar data frame com amostras como linhas e genes como colunas
+data_model <- as.data.frame(t(logCPM_sub))
+data_model$Sex <- factor(labels)
+
+# Garantir que os levels são válidos para uso com class probabilities
+levels(data_model$Sex) <- make.names(levels(data_model$Sex))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Sex, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Corrigir aplicação do SMOTE
+# Remover colunas não numéricas
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]  
+
+# Encontrar o tamanho mínimo da classe
+min_class_size <- min(table(trainData$Sex))
+
+# Ajustar K para evitar erro de SMOTE
+K_value <- max(1, min_class_size - 1)  
+
+# Aplicar SMOTE corretamente (usando factor numérico)
+smote_result <- SMOTE(trainData_numeric, target = trainData$Sex, K = K_value, dup_size = 2)
+smote_data <- smote_result$data
+
+# Ajustar nomes das colunas
+colnames(smote_data)[ncol(smote_data)] <- "Sex"
+smote_data$Sex <- factor(smote_data$Sex, levels = levels(trainData$Sex))
+
+# Remover valores ausentes
+smote_data <- na.omit(smote_data)
+
+# Treinar modelo SVM com validação cruzada e métrica ROC
+set.seed(123)
+fit_svm2 <- train(Sex ~ ., data = smote_data, method = "svmRadial",
+                 trControl = ctrl,
+                 preProcess = c("center", "scale"),
+                 tuneLength=5,
+                 metric = "ROC")
+
+# Definir a classe positiva para avaliação
+positive_class <- "Female"
+
+# Previsão do modelo no conjunto de teste
+pred_class <- predict(fit_svm2, testData)
+
+# Criar matriz de confusão para avaliar o desempenho do modelo
+confusion <- confusionMatrix(pred_class, testData$Sex)
+pander::pander(confusion, caption = "Estatísticas da Matriz de Confusão (por classe)")
+
+# Garantir que testData$Sex é um fator
+testData$Sex <- factor(testData$Sex)                       
+
+# Garantir que as previsões têm os mesmos níveis que os dados reais
+pred_svm <- factor(pred_class, levels = levels(testData$Sex)) 
+
+```
+
+Matriz de confusão:
+
+- 36 previsões corretas para "Female" e 118 previsões corretas para "Male".
+- 16 erros ao classificar "Female" como "Male".
+- 70 erros ao classificar "Male" como "Female".
+
+Modelo apresenta bom desempenho na classe "Male", mas desempenho fraco na classe "Female". 
+A aplicação de SMOTE não foi suficiente para corrigir o desequílibrio nem para melhorar de forma significativa a sensibilidade para a classe minoritária.
+
+Métricas de Desempenho:
+
+- Accuracy: 0.6417 → o modelo acerta aproximadamente dois terços dos casos.
+- Kappa: 0.2326 → desempenho ligeiramente melhor do modelo aleatório.
+- Especificidade: 0.8806 → o modelo reconhece bem a classe "Male", com poucos falsos positivos.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Calcular Precisão, Recall e F1 Score
+precision <- posPredValue(pred_svm, testData$Sex, positive = positive_class)
+recall <- sensitivity(pred_svm, testData$Sex, positive = positive_class)
+
+# Exibir os valores calculados
+cat("Precisão:", precision, "\n")
+cat("Recall:", recall, "\n")
+
+# Calcular o F1 Score apenas se houver valores válidos de precisão e recall
+if (!is.na(precision) && !is.na(recall) && (precision + recall) > 0) {
+  f1 <- 2 * (precision * recall) / (precision + recall)
+  cat("F1 Score:", round(f1, 3), "\n")
+} else {
+  cat("O F1 Score não pode ser calculado devido à ausência de precisão ou recall.\n")
+}
+
+# Previsão das probabilidades para cada classe
+pred_prob <- predict(fit_svm2, testData, type = "prob")
+
+# Garantir que testData$Sex tem os mesmos níveis que smote_data$Sex
+testData$Sex <- factor(testData$Sex, levels = levels(smote_data$Sex))
+
+# Encontrar dinamicamente a coluna correta de probabilidades
+sex_levels <- levels(testData$Sex)
+correct_col <- grep(paste(sex_levels, collapse = "|"), colnames(pred_prob), value = TRUE)
+
+# Verificar se a coluna correta foi encontrada
+if (length(correct_col) == 0) {
+  stop(paste("Erro: Coluna de probabilidade para a classificação de Sex não encontrada. Nomes disponíveis:", 
+             paste(colnames(pred_prob), collapse = ", ")))
+}
+
+# Garantir que apenas uma coluna é selecionada
+if (length(correct_col) > 1) {
+  correct_col <- correct_col[1]  # Selecionar a primeira correspondência
+}
+
+# Garantir que o preditor e a resposta têm o mesmo comprimento
+if (length(testData$Sex) != nrow(pred_prob)) {
+  stop("Erro: Incompatibilidade de tamanhos entre testData$Sex e as probabilidades previstas.")
+}
+
+# Converter preditor para numérico
+numeric_pred <- as.numeric(pred_prob[[correct_col]])  
+
+```
+
+- Precisão: 0.6923 → Quando o modelo prevê "Female", está correto 69.23% das vezes.
+- Recall: 0.3396 → Identifica 33.96% dos casos "Female" corretamente.
+- F1 Score: 0.4557 → Indica baixo equilíbrio entre precisão e recall para esta classe.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Calcular a curva ROC
+roc_curve <- roc(response = testData$Sex, predictor = numeric_pred)
+
+# Calcular a AUC (Área sob a curva ROC)
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Plotar a curva ROC
+plot(roc_curve, col = palette_3, main = "Curva ROC para SVM (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva está num padrão escalonado, indicando que o modelo está a tomar decisões com base em múltiplos limiares de classificação.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). Como a curva do modelo está acima da diagonal, o modelo tem desempenho superior ao acaso.
+
+AUC Score:
+
+- AUC: 0.723 → O modelo tem capacidade moderada de distinguir entre as classes "Female" e "Male".
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Calcular a importância das variáveis (genes)
+importance <- varImp(fit_svm2, scale = FALSE)
+
+# Converter importância para um data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+
+# Criar uma métrica geral de importância combinando as classes "Female" e "Male"
+importance_df$Overall <- rowMeans(importance_df[, c("Female", "Male")])
+
+# Ordenar por importância
+importance_df <- importance_df[order(-importance_df$Overall), ]
+
+# Selecionar as 20 características mais importantes
+top_20 <- head(importance_df, 20)
+
+# Exibir tabela com os genes mais importantes
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Genes Mais Importantes")
+
+# Plot da importância das características
+plot(importance, top = 20, main = "Top 20 Características Mais Importantes")
+```
+
+Importância dos Genes:
+
+- Gene mais relevante: 22829 com um peso de 0.0998, o qual domina completamente a decisão do modelo.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.08), sugerindo que são os principais responsáveis pela decisão do modelo.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Criar um data frame para o boxplot
+df_plot <- data.frame(Prob = pred_prob[, correct_col], Status = testData$Sex)
+
+# Gerar o boxplot para visualizar a distribuição das probabilidades previstas
+boxplot(pred_prob[, correct_col] ~ testData$Sex, 
+        col = palette_3, 
+        main = "Distribuição das Probabilidades por Classe", ylab = "Probabilidade Prevista")
+
+
+```
+Boxplot - Distribuição das Probabilidades:
+
+Classe "Female" (vermelho):
+
+- Possui uma mediana perto dos 0.3, indicando previsões moderadamente confiantes.
+- Dispersão alta com o Q3 perto dos 0.6 e o Q1 perto dos 0.1, isto sugere que o modelo tem dificuldade em ser consistente ao prever esta classe.
+
+Classe "Male" (azul):
+
+- Possui uma mediana baixa perto dos 0.05, indicando previsões mais consistentes para prever esta classe.
+- Poucos outliers acima dos 0.6, sugerindo robustez do modelo.
+
+A sobreposição nas distribuições de probabilidade entre as duas classes mostra que o modelo tem dificuldade em separá-las com confiança. Isto confirma o desempenho desigual observado nas métricas e matriz de confusão, particularmente a fraca performance na classe "Female". 
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# --- B. Support Vector Machine com SMOTE ---- ANCESTRALIDADE
+
+# Preparar dados
+clean_data_for_2part <- clini_data_no_na
+
+# Definir variável resposta
+f_ancestralidade <- as.factor(clini_data_no_na$ancestry)
+names(f_ancestralidade) <- clini_data_no_na$sample_ID
+
+# Alinhar dados de expressão com amostras com dados clínicos
+common_samples <- intersect(colnames(expr_all), names(f_ancestralidade))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_ancestralidade[common_samples]
+
+# Criar data frame com amostras como linhas e genes como colunas
+data_model <- as.data.frame(t(logCPM_sub))
+data_model$Ancestralidade <- factor(labels)
+
+# Garantir que os levels são válidos para uso com class probabilities
+levels(data_model$Ancestralidade) <- make.names(levels(data_model$Ancestralidade))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Ancestralidade, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# --- FILTRAR CLASSES RARAS (< 5 amostras) ---
+min_samples <- 5
+table_counts <- table(trainData$Ancestralidade)
+keep_levels <- names(table_counts[table_counts >= min_samples])
+
+trainData_filtered <- trainData[trainData$Ancestralidade %in% keep_levels, ]
+trainData_filtered$Ancestralidade <- droplevels(trainData_filtered$Ancestralidade)
+
+# Atualizar levels no conjunto de teste para corresponder
+testData <- testData[testData$Ancestralidade %in% keep_levels, ]
+testData$Ancestralidade <- droplevels(testData$Ancestralidade)
+
+# Preparar dados numéricos para SMOTE
+trainData_numeric <- trainData_filtered[, sapply(trainData_filtered, is.numeric)]  
+
+# Encontrar novo tamanho mínimo da classe
+min_class_size <- min(table(trainData_filtered$Ancestralidade))
+K_value <- max(1, min_class_size - 1)
+
+# Aplicar SMOTE
+smote_result <- SMOTE(trainData_numeric, target = trainData_filtered$Ancestralidade, K = K_value, dup_size = 2)
+smote_data <- smote_result$data
+colnames(smote_data)[ncol(smote_data)] <- "Ancestralidade"
+smote_data$Ancestralidade <- factor(smote_data$Ancestralidade, levels = levels(trainData_filtered$Ancestralidade))
+
+# Remover NAs
+smote_data <- na.omit(smote_data)
+
+# Treinar modelo SVM
+set.seed(123)
+fit_svm3 <- train(Ancestralidade ~ ., data = smote_data, method = "svmRadial",
+                 trControl = ctrl1,
+                 preProcess = c("center", "scale"),
+                 tuneLength=5,
+                 metric = "Accuracy")
+
+# Previsão do modelo no conjunto de teste
+pred_class <- predict(fit_svm3, testData)
+
+# Criar matriz de confusão
+conf_matrix <- confusionMatrix(pred_class, testData$Ancestralidade)
+pander::pander(conf_matrix, caption = "Estatísticas da Matriz de Confusão (por classe)")
+```
+
+Matriz de Confusão:
+
+- 218 previsões corretas para "EUR", mas teve dificuldades nas outras classes.
+- Confirma que o modelo está enviesado para prever EUR corretamente, mas falha nas outras classes
+
+Métricas de Desempenho:
+
+- Accuracy: 0.9689 → Classifica corretamente na maioria dos casos para a classe dominante.
+- AccuracyLower: 0.937 e AccuracyUpper: 0.9874 → o intervalo de confiança de accuracy mostra estabilidade na mesma tendência enviesada
+- AccuracyNull: 0.9689 → o modelo pode estar apenas a prever a classe dominante.
+- Kappa: 0 → indica que o modelo não está a prever melhor do que um classificador aleatório.
+- Especificidade: 1 → como o modelo não identifica corretamente as classes negativas, parece haver confusão com a sensibilidade ou precisão.
+- Balanced Accuracy: 0.5 → sugere um desempenho aleatório quando se consideram todas as classes iguais
+- p-value da accuracy (0.5987) indica que não há diferença estatística significativa entre o modelo e um classificador aleatório.
+- McNemarPValue: 0.02334 → possível desequilíbrio nos erros, isto é, o modelo trata uma classe de forma muito diferente das outras.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Calcular Precisão, Recall e F1 Score por classe
+precision_vec <- diag(conf_matrix$table) / colSums(conf_matrix$table)
+recall_vec <- diag(conf_matrix$table) / rowSums(conf_matrix$table)
+
+# Calcular F1-score para cada classe
+f1_vec <- ifelse((precision_vec + recall_vec) > 0,
+                 2 * (precision_vec * recall_vec) / (precision_vec + recall_vec),
+                 NA)
+
+# Criar um data frame com os valores de F1-score
+f1_scores <- data.frame(
+  Classe = rownames(conf_matrix$table),
+  Precisão = round(precision_vec, 3),
+  Recall = round(recall_vec, 3),
+  F1 = round(f1_vec, 3)
+)
+
+cat("F1, Recall e Precisão por classe:\n")
+knitr::kable(f1_scores, caption = "Precisão, Recall e F1 Score por Classe")
+
+# Previsão de probabilidades (para AUC e boxplot)
+pred_prob <- predict(fit_svm3, testData, type = "prob")
+
+# Garantir que testData$Ancestralidade tem os mesmos níveis que pred_prob
+testData$Ancestralidade <- factor(testData$Ancestralidade, levels = colnames(pred_prob))
+
+```
+
+- Precisão: NA → Prevê apenas a classe "EUR" com alta confiança.
+- Recall: 0 → Identifica bem apenas a classe "EUR".
+- F1 Score: NA  → Prevê apenas a classe "EUR" com alta confiança.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Criar listas para armazenar curvas ROC e valores de AUC
+roc_list <- list()
+auc_scores <- c()
+classes <- colnames(pred_prob)
+
+# Calcular curvas ROC para cada classe (um-contra-todos)
+for (class_name in classes) {
+  # Criar rótulos binários: 1 para a classe atual, 0 para as restantes
+  binary_response <- factor(ifelse(testData$Ancestralidade == class_name, class_name, paste0("not_", class_name)))
+  
+  # Calcular curva ROC
+  roc_curve <- roc(response = binary_response,
+                   predictor = pred_prob[, class_name],
+                   levels = c(paste0("not_", class_name), class_name))
+  
+  # Guardar valores de AUC e curva ROC
+  auc_score <- auc(roc_curve)
+  auc_scores <- c(auc_scores, auc_score)
+  roc_list[[class_name]] <- roc_curve
+  
+  cat(paste("AUC para", class_name, "vs todos:", round(auc_score, 3), "\n"))
+}
+
+# Plot a primeira curva ROC
+plot(roc_list[[1]], col = palette_3[1], main = "Curvas ROC Multi-classe para SVM (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva ROC tem uma forma degraudo e irregular, permanecendo perto da linha diagonal, o que indica baixa capacidade de separação entre classes. 
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). Como a curva está um pouco acima da diagonal, o desempenho é ligeiramente melhor que o acaso, mas sem ganhos significativos. 
+
+AUC Score:
+
+- AUC: 0.649 → o modelo tem um desempenho fraco na sua capacidade discriminativa, mas é melhor que aleatório.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Calcular a importância das variáveis (genes)
+importance <- varImp(fit_svm3, scale = FALSE)
+
+# Converter importância para um data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+
+# Criar uma métrica geral de importância
+importance_df$Overall <- rowMeans(importance_df[, c("AFR", "EUR")])
+
+# Ordenar por importância
+importance_df <- importance_df[order(-importance_df$Overall), ]
+
+# Selecionar as 20 características mais importantes
+top_20 <- head(importance_df, 20)
+
+# Exibir tabela com os genes mais importantes
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Genes Mais Importantes")
+
+# Plotar a importância das características
+plot(importance, top = 20, main = "Top 20 Características Mais Importantes")
+```
+
+Importância dos Genes:
+
+- Genes mais relevantes: 317749 com um peso de 0.9576 e Gene 10901 com peso 0.9249.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.09), sugerindo que são os principais responsáveis pela decisão do modelo. 
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+### Correção do Boxplot da Distribuição de Probabilidades
+# Encontrar dinamicamente a coluna correta de probabilidades
+correct_col1 <- grep(paste(levels(testData$Ancestralidade), collapse = "|"), colnames(pred_prob), value = TRUE)
+
+# Garantir que apenas uma coluna é selecionada
+if (length(correct_col1) > 1) {
+    correct_col1 <- correct_col1[1]  # Selecionar a primeira correspondência
+}
+
+# Verificar se a coluna correta foi encontrada
+if (!(correct_col1 %in% colnames(pred_prob))) {
+    stop("Erro: Coluna de probabilidade para a classificação de Ancestralidade não encontrada.")
+}
+
+# Converter preditor para numérico
+numeric_pred <- as.numeric(pred_prob[[correct_col1]])  
+
+# Criar data frame para o boxplot
+df_plot <- data.frame(Prob = numeric_pred, Status = testData$Ancestralidade)
+
+# Gerar o boxplot
+boxplot(df_plot$Prob ~ df_plot$Status, 
+        col = palette_3, 
+        main = "Distribuição das Probabilidades por Classe", ylab = "Probabilidade Prevista")
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe AFR:
+
+- A mediana da probabilidade predita está próxima de 0.01.
+- Existe uma baixa dispersão e não há outliers, sugerindo que o modelo prevê esta classe de forma repetitiva, mas com baixa confiança, indicando a sua incapacidade de discriminação real.
+
+Classe EUR:
+
+- A mediana também é próxima de 0.01, e possui outliers acima de 0.02, indicando alguns casos onde o modelo atribui maior probabilidade. 
+- A presença de outliers em EUR mostra tendência a superestimar a classe dominante mesmo que discretamente.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## B. Support Vector Machine com SMOTE ---- CANCER
+
+# Preparar dados
+common_samples <- intersect(colnames(expr_all), names(f_cancer))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_cancer[common_samples]
+
+# Criar data frame com amostras como linhas e genes como colunas
+data_model <- as.data.frame(t(logCPM_sub))
+data_model$Cancer <- factor(labels)
+
+# Garantir que os levels são válidos para uso com class probabilities
+levels(data_model$Cancer) <- make.names(levels(data_model$Cancer))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Cancer, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Remover colunas não numéricas
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]  
+
+# Encontrar o tamanho mínimo da classe
+min_class_size <- min(table(trainData$Cancer))
+
+# Ajustar K para evitar erro de SMOTE
+K_value <- max(1, min_class_size - 1)  # Garante que K seja pelo menos 1
+
+# Aplicar SMOTE corretamente (usando factor numérico)
+smote_result <- SMOTE(trainData_numeric, target = trainData$Cancer, K = K_value, dup_size = 2)
+smote_data <- smote_result$data
+
+# Ajustar nomes das colunas
+colnames(smote_data)[ncol(smote_data)] <- "Cancer"
+smote_data$Cancer <- factor(smote_data$Cancer, levels = levels(trainData$Cancer))
+
+# Remover valores ausentes
+smote_data <- na.omit(smote_data)
+
+# Treinar modelo SVM com validação cruzada e métrica ROC
+set.seed(123)
+fit_svm4 <- train(Cancer ~ ., data = smote_data, method = "svmRadial",
+                 trControl = ctrl1,  # Use multiClassSummary
+                 preProcess = c("center", "scale"),
+                 tuneLength=5,
+                 metric = "Accuracy")  # Use Accuracy for multi-class problems
+
+
+# Avaliação no conjunto de teste
+pred_class <- predict(fit_svm4, testData)
+confusion <- confusionMatrix(pred_class, testData$Cancer)
+pander::pander(confusion, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- Astrocytoma: 69 corretos, 31 classificados como Oligoastrocytoma, 21 como Oligodendroglioma.
+- Oligoastrocytoma: 9 corretos, 8 classificados como Astrocytoma, 3 como Oligodendroglioma.
+- Oligodendroglioma: 62 corretos, 22 classificados como Oligoastrocytoma, 14 como Astrocytoma.
+Astrocytoma e Oligodendroglioma são razoavelmente bem classificados. Oligoastrocytoma tem baixo desempenho, frequentemente confundida com outras. Isto sugere sobreposição nas características dos tumores e limites poucos claros entre as classes.
+
+Métricas de Desempenho:
+
+- Accuracy: 0.5858 → O modelo classifica corretamente 58.58% dos exemplos, o que pode ser melhorado. 
+- Kappa: 0.3507 → Indica concordância moderada entre previsões e valores reais. 
+- Mcnemar's Test P-Value: 1.842e-06 → P-valor baixo, indicando diferenças estatisticamente significativas entre algumas classes.
+
+Especificidade: O modelo consegue distinguir melhor Astrocytoma e Oligodendroglioma.
+- Astrocytoma: 0.6486
+- Oligoastrocytoma: 0.9379
+- Oligodendroglioma: 0.7647
+
+Balanced Accuracy: Astrocytoma e Oligodendroglioma têm desempenho razoável, sendo que Oligoastrocytoma tem a pior acurácia balanceada, indicando que o modelo tem dificuldades em prever essa classe corretamente.
+- Astrocytoma: 0.7034
+- Oligoastrocytoma: 0.5415
+- Oligodendroglioma: 0.7428
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Extrair tabela confusion matrix 
+conf_table <- confusion$table
+
+# Initializa data frame para armazenar métricas
+class_metrics <- data.frame(Class = levels(testData$Cancer),
+                            Precision = numeric(length(levels(testData$Cancer))),
+                            Recall = numeric(length(levels(testData$Cancer))),
+                            F1_Score = numeric(length(levels(testData$Cancer))))
+
+# Ciclo sobre cada classe para calcular precisão, sensibilidade e F1 score
+for (class in levels(testData$Cancer)) {
+  # Verdadeiros Positivos (VP): Previsões corretas da classe
+  TP <- conf_table[class, class]
+  
+  # Falsos Positivos (FP): Previsões da classe, mas pertencem a outra
+  FP <- sum(conf_table[, class]) - TP
+  
+  # Falsos Negativos (FN): Pertencem à classe, mas foram previstos como outra
+  FN <- sum(conf_table[class, ]) - TP
+  
+  # Precisão: VP / (VP + FP)
+  precision <- ifelse((TP + FP) == 0, NA, TP / (TP + FP))
+  
+  # Sensibilidade (Recall): VP / (VP + FN)
+  recall <- ifelse((TP + FN) == 0, NA, TP / (TP + FN))
+  
+  # F1 Score: 2 * (Precisão * Sensibilidade) / (Precisão + Sensibilidade)
+  f1 <- ifelse(is.na(precision) | is.na(recall) | (precision + recall) == 0, NA, 2 * (precision * recall) / (precision + recall))
+  
+  # Guardar os resultados
+  class_metrics[class_metrics$Class == class, ] <- c(class, precision, recall, f1)
+}
+
+# Converter colunas numéricas
+class_metrics[, 2:4] <- lapply(class_metrics[, 2:4], as.numeric)
+
+# Round
+class_metrics_rounded <- class_metrics
+class_metrics_rounded[, 2:4] <- round(class_metrics_rounded[, 2:4], 3)
+
+# Tabela
+knitr::kable(class_metrics_rounded, caption = "Per-Class Performance Metrics (Precision, Recall, F1 Score)")
+
+# Prever probabilidades
+pred_prob <- predict(fit_svm4, testData, type = "prob")
+
+# Garantir que testData$Cancer tem os mesmos níveis que smote_data$Cancer
+testData$Cancer <- factor(testData$Cancer, levels = levels(smote_data$Cancer))
+
+# Encontrar a coluna correta para probabilidades
+cancer_levels <- levels(testData$Cancer)
+correct_col <- grep(paste(cancer_levels, collapse = "|"), colnames(pred_prob), value = TRUE)
+
+# Verificar se a coluna correta foi encontrada
+if (length(correct_col) == 0) {
+  stop(paste("Erro: Coluna de probabilidade para classificação de Cancer não encontrada. Nomes disponíveis:", 
+             paste(colnames(pred_prob), collapse = ", ")))
+}
+
+# Garantir que apenas uma coluna seja selecionada
+if (length(correct_col) > 1) {
+  correct_col <- correct_col[1] 
+}
+
+# Verificar se os tamanhos das variáveis são compatíveis
+if (length(testData$Cancer) != nrow(pred_prob)) {
+  stop("Erro: Diferente número de elementos entre testData$Cancer e pred_prob.")
+}
+```
+
+Recall: 
+
+- Astrocytoma: 0.7582
+- Oligoastrocytoma: 0.1452
+- Oligodendroglioma: 0.7209
+
+Precision:
+
+- Astrocytoma: 0.5702
+- Oligoastrocytoma: 0.45
+- Oligodendroglioma: 0.6327
+
+F1 Score: 
+- Astrocytoma: 0.6509
+- Oligoastrocytoma: 0.2195
+- Oligodendroglioma: 0.6739
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Converter preditor para numérico
+numeric_pred <- as.numeric(pred_prob[[correct_col]])  # Usa [[ ]] para extrair como vetor
+
+# Calcular AUC e Curva ROC
+roc_curve <- roc(response = testData$Cancer, predictor = numeric_pred)
+
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Plot Curva ROC
+plot(roc_curve, col = palette_3, main = "ROC Curve for SVM (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva segue um padrão escalonado, indicando que o modelo está a tomar decisões em diferentes limiares de classificação.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). Como a curva do modelo está bem acima dessa linha, isso confirma que o modelo tem um desempenho significativamente melhor do que um classificador aleatório.
+
+- AUC Score: 0.72279 → Tem uma capacidade moderada de distinguir entre as classes, especialmente Astrocytoma e Oligodendroglioma.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Calcular a importância das variáveis no modelo
+importance <- varImp(fit_svm4, scale = FALSE)
+
+# Converter a importância para um data frame
+importance_df <- as.data.frame(importance$importance)
+
+# Adicionar os nomes dos genes como uma coluna separada
+importance_df$Gene <- rownames(importance_df)
+
+# Criar uma métrica geral de importância combinando as classes "Atrocytoma", "Oligoastrocytoma" e "Oligodendroglioma"
+importance_df$Overall <- rowMeans(importance_df[, c("Astrocytoma", "Oligoastrocytoma", "Oligodendroglioma")])
+
+# Ordenar os genes por importância (do maior para o menor)
+importance_df <- importance_df[order(-importance_df$Overall), ]
+
+# Selecionar os 20 genes mais importantes
+top_20 <- head(importance_df, 20)
+
+# Exibir tabela com os genes mais importantes
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Genes Mais Importantes")
+
+# Plotar a importância das características
+plot(importance, top = 20, main = "Top 20 Características Mais Importantes")
+```
+
+Importância dos Genes:
+
+- Genes mais relevantes: 83931 com um peso de 0.8397 e Gene 55616 com peso 0.8385.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.8), sugerindo que são os principais responsáveis pela decisão do modelo.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Boxplot da distribuição de probabilidades
+df_plot <- data.frame(Prob = pred_prob[[correct_col]], Status = testData$Cancer)
+
+boxplot(pred_prob[[correct_col]] ~ testData$Cancer, 
+        col = palette_3, 
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Astrocytoma:
+
+- Mediana alta, indicando previsões confiantes e sem outliers, pelo que o modelo é estável e com alta confiança para esta classe.
+
+Oligoastrocytoma:
+
+- Mediana mais baixa do que Astrocytoma e sem outliers, pelo que há menor confiança média nas previsões para esta classe.  
+
+Oligodendroglioma:
+
+- Mediana mais baixa do que Oligoastrocytoma com baixa variablidade e sem outliers. O modelo é de baixa confiância ao prever esta classe. 
+
+### **11.3 XGBoost**
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## C. XGBoost com SMOTE ---- SURVIVAL
+
+# Preparar dados
+clean_data_for_2part <- clini_data_no_na
+
+# Definir variável resposta
+f_survival <- as.factor(clini_data_no_na$surv_status)
+names(f_survival) <- clini_data_no_na$sample_ID
+
+# Alinhar dados de expressão com amostras com dados clínicos
+common_samples <- intersect(colnames(expr_all), names(f_survival))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_survival[common_samples]
+
+# Construir dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))  # genes como colunas
+data_model$SurvivalStatus <- factor(labels)
+
+# Ajustar levels para uso com SMOTE e xgboost
+levels(data_model$SurvivalStatus) <- make.names(levels(data_model$SurvivalStatus))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$SurvivalStatus, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# SMOTE
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+smote_result <- SMOTE(trainData_numeric, trainData$SurvivalStatus, K = 3, dup_size = 2)
+smote_data <- smote_result$data
+colnames(smote_data)[ncol(smote_data)] <- "SurvivalStatus"
+smote_data$SurvivalStatus <- factor(smote_data$SurvivalStatus, 
+                                    levels = levels(trainData$SurvivalStatus))
+
+# Treinar modelo XGBoost
+set.seed(123)
+capture.output({
+  fit_xgb1 <- train(SurvivalStatus ~ ., data = smote_data, method = "xgbTree",
+                   trControl = ctrl, 
+                   metric ="ROC", 
+                   tuneLength=3)
+}, file = "NUL")
+
+# Avaliação no conjunto de teste
+pred_class <- predict(fit_xgb1, testData)
+ 
+conf_matrix <- confusionMatrix(pred_class, testData$SurvivalStatus)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- 161 previsões corretas para "XO.ALIVE.OR.DEAD.TUMOR.FREE".
+- 22 previsões corretas para "X1.DEAD.WITH.TUMOR".
+- 33 erros ao classificar "X1.DEAD.WITH.TUMOR" como "XO.ALIVE.OR.DEAD.TUMOR.FREE".
+- 24 erros ao classificar "XO.ALIVE.OR.DEAD.TUMOR.FREE" como "X1.DEAD.WITH.TUMOR"
+- Modelo tem boa capacidade de prever a classe "XO.ALIVE.OR.DEAD.TUMOR.FREE", mas tem dificuldades em prever corretamente "X1.DEAD.WITH.TUMOR".
+- Embora treinado com Smote, o modelo pode estar enviesado para prever "XO.ALIVE.OR.DEAD.TUMOR.FREE" com mais frequência.
+
+Métricas de Desempenho:
+
+- Accuracy: 76.25% → Classifica corretamente na maioria dos casos.
+- Kappa: 0.2886 → Indica um acordo moderado entre as previsões e os valores reais.
+- Especificidade: 0.4 → Tem dificuldade em identificar corretamente os casos negativos.
+- Balanced Accuracy: 0.6351 → O modelo não está completamente equilibrado, pois a especificidade é baixa.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Previsão de probabilidades
+pred_prob <- suppressWarnings(predict(fit_xgb1, testData, type = "prob"))
+correct_col <- grep("ALIVE.OR.DEAD.TUMOR.FREE", colnames(pred_prob), value = TRUE)
+
+f1_smote <- F1_Score(y_pred = pred_class, y_true = testData$SurvivalStatus, positive = "ALIVE.OR.DEAD.TUMOR.FREE")
+
+# Precision, Recall
+positive_class <- "X0.ALIVE.OR.DEAD.TUMOR.FREE"
+precision <- posPredValue(pred_class, testData$SurvivalStatus, positive = positive_class)
+recall <- sensitivity(pred_class, testData$SurvivalStatus, positive = positive_class)
+f1 <- 2 * (precision * recall) / (precision + recall)
+
+cat("Recall:", recall, "\n")
+cat("Precision:", precision, "\n")
+cat("F1 Score:", round(f1, 3), "\n")
+```
+
+- Recall: 0.8703 → Identifica 87.03% dos casos positivos corretamente.
+- Precisão: 0.8299 → Quando prevê "XO.ALIVE.OR.DEAD.TUMOR.FREE", está correto 82.99% das vezes.
+- F1 Score: 0.85 → Indica um bom equilíbrio entre precisão e recall.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# ROC
+roc_curve <- roc(response = testData$SurvivalStatus, predictor = pred_prob[, correct_col])
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Curva ROC
+plot(roc_curve, col = palette_3, main = "ROC Curve for XGBoost (com SMOTE)")
+```
+
+Forma da Curva:
+
+- A curva ROC está próxima do canto superior esquerdo, indicando alta sensibilidade e especificidade. Isso significa que o modelo classifica corretamente a maioria dos exemplos, minimizando falsos positivos e falsos negativos.
+
+Comparação com um Classificador Aleatório
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5).
+- Como a curva ROC do modelo está bem acima dessa linha, isso confirma que o modelo tem um desempenho significativamente melhor do que um classificador aleatório.
+
+AUC Score
+
+- AUC: 0.7494 → O modelo tem capacidade razoável de distinguir entre as classes, mas não é perfeito (abaixo de 0.8).
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Importância das features
+importance <- varImp(fit_xgb1, scale = FALSE)
+
+# Extrair variavel importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Gene mais relevante: 90187, com um peso de 0.1019811. Este gene tem um impacto significativo na classificação do modelo.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.03), sugerindo que são os principais responsáveis pela decisão do modelo
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Boxplot das probabilidades
+boxplot(pred_prob[, correct_col] ~ testData$SurvivalStatus,
+        col = palette_3,
+        main = "Class Probability Distribution", ylab = "Predicted Probability")
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe "X0.ALIVE.OR.DEAD.TUMOR.FREE" (vermelho):
+
+- A maioria das previsões tem probabilidades próximas de 1, indicando alta confiança do modelo nesta classe.
+- Existem alguns outliers com probabilidades mais baixas (~0.2), sugerindo casos ambíguos.
+
+Classe "X1.DEAD.WITH.TUMOR" (azul):
+
+- A distribuição é mais espalhada, com valores variando de 0.2 a 0.8.
+- A mediana está próxima de 0.5, indicando que o modelo não tem tanta certeza ao prever esta classe. Pode sugerir dificuldade na separação entre as classes, levando a previsões menos confiáveis.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## C. XGBoost com SMOTE - Sex
+
+# Preparar dados
+clean_data_for_2part <- clini_data_no_na
+
+# Definir variável resposta
+f_sex <- as.factor(clean_data_for_2part$sex)
+names(f_sex) <- clean_data_for_2part$sample_ID
+
+# Alinhar dados de expressão com amostras com dados clínicos
+common_samples <- intersect(colnames(expr_all), names(f_sex))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_sex[common_samples]
+
+# Construir dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))  # genes como colunas
+data_model$Sex <- factor(labels)
+
+# Ajustar levels para uso com SMOTE e xgboost
+levels(data_model$Sex) <- make.names(levels(data_model$Sex))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Sex, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# SMOTE
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+smote_result <- SMOTE(trainData_numeric, trainData$Sex, K = 3, dup_size = 2)
+smote_data <- smote_result$data
+colnames(smote_data)[ncol(smote_data)] <- "Sex"
+smote_data$Sex <- factor(smote_data$Sex, levels = levels(trainData$Sex))
+
+# Treinar modelo XGBoost
+set.seed(123)
+capture.output({
+  fit_xgb2 <- train(Sex ~ ., data = smote_data, method = "xgbTree",
+                    trControl = ctrl, 
+                    metric = "ROC", tuneLength=3)
+}, file = "NUL")
+
+# Avaliação no conjunto de teste
+pred_class <- predict(fit_xgb2, testData)
+conf_matrix <- confusionMatrix(pred_class, testData$Sex)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de confusão:
+
+- 106 previsões corretas para "Female" e 131 previsões corretas para "Male".
+- Apenas 3 erros ao classificar "Female" como "Male".
+- Nenhum erro ao classificar "Male".
+
+Modelo tem alta precisão e sensibilidade, especialmente para a classe "Female".
+
+- Treinado com SMOTE (Synthetic Minority Over-sampling Technique), que ajuda a lidar com desbalanceamento de classes.
+
+Métricas de Desempenho:
+
+- Accuracy: 98.75% → classifica corretamente na maioria dos casos.
+- Kappa: 0.9747 → Excelente acordo entre as previsões e os valores reais.
+- Especificidade: 0.9776 → Identifica quase todos os exemplos da classe "Male" bem.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Previsão de probabilidades
+pred_prob <- suppressWarnings(predict(fit_xgb2, testData, type = "prob"))
+correct_col <- grep("Female", colnames(pred_prob), value = TRUE)  
+
+# Precision, Recall, F1
+positive_class <- "Female"
+
+precision <- posPredValue(pred_class, testData$Sex, positive = positive_class)
+recall <- sensitivity(pred_class, testData$Sex, positive = positive_class)
+f1 <- 2 * (precision * recall) / (precision + recall)
+
+# Print precision, recall,F1
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", round(f1, 3), "\n")
+```
+
+- Precisão: 0.9725 → Quando o modelo prevê "Female", está correto 97.25% das vezes.
+- Recall: 1 → Identifica todos os exemplos da classe "Female" corretamente.
+- F1 Score: 0.986 → Indica um excelente equilíbrio entre precisão e recall.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Curva ROC e AUC
+roc_curve <- roc(response = testData$Sex, predictor = pred_prob[, correct_col])
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Curva ROC
+plot(roc_curve, col = palette_3, main = "ROC Curve for XGBoost (com SMOTE) - Sexo")
+```
+
+Forma da Curva:
+
+- A curva está muito próxima do canto superior esquerdo, indicando alta sensibilidade e especificidade, minimizando falsos positivos e falsos negativos.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). Como a curva do modelo está bem acima dessa linha, isso confirma que o modelo tem um desempenho significativamente melhor do que um classificador aleatório.
+
+AUC Score:
+
+- AUC: 0.9998 → Quase perfeita separação entre as classes "Female" e "Male". Distingue muito bem entre as duas classes.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Importância das features
+importance <- varImp(fit_xgb2, scale = FALSE)
+
+# Extrair variavel importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Gene mais relevante: 22829 com um peso de 0.788.
+- Outros genes com menor impacto incluem 8242 (0.0876) e 7403 (0.0295).
+- A maioria dos genes tem um impacto relativamente baixo, exceto o primeiro.
+
+Isso sugere que alguns genes têm um papel muito forte na classificação, enquanto outros contribuem menos.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Boxplot das probabilidades
+boxplot(pred_prob[, correct_col] ~ testData$Sex,
+        col = palette_3,
+        main = "Distribuição das Probabilidades - Sexo", ylab = "Probabilidade Prevista")
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe "Female" (vermelho):
+
+- A maioria das previsões tem probabilidades próximas de 1, indicando alta confiança do modelo.
+
+Classe "Male" (azul):
+
+- A maioria das previsões tem probabilidades próximas de 0, também indicando alta confiança.
+- Poucos outliers.
+
+Isso confirma que o modelo classifica com alta confiança, mas pode haver casos ambíguos.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## C. XGBoost com SMOTE - Ancestralidade
+# Preparar dados
+clean_data_for_2part <- clini_data_no_na
+
+# Preparar f_ancestralidade sem NA
+f_ancestralidade <- as.factor(clean_data_for_2part$ancestry)
+names(f_ancestralidade) <- clean_data_for_2part$sample_ID
+f_ancestralidade <- f_ancestralidade[!is.na(f_ancestralidade)]
+
+# Alinhar com dados de expressão
+common_samples <- intersect(colnames(expr_all), names(f_ancestralidade))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_ancestralidade[common_samples]
+
+# Criar dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))  # genes como colunas
+data_model$Ancestralidade <- factor(labels)
+data_model <- na.omit(data_model)  # Garantir que não há NAs
+levels(data_model$Ancestralidade) <- make.names(levels(data_model$Ancestralidade))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$Ancestralidade, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# Remover classes com poucas amostras no treino
+min_class_size <- 5
+keep_classes <- names(which(table(trainData$Ancestralidade) >= min_class_size))
+trainData <- trainData[trainData$Ancestralidade %in% keep_classes, ]
+trainData$Ancestralidade <- droplevels(trainData$Ancestralidade)
+
+# Aplicar SMOTE
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+smote_result <- SMOTE(trainData_numeric, trainData$Ancestralidade, K = 3, dup_size = 2)
+smote_data <- smote_result$data
+colnames(smote_data)[ncol(smote_data)] <- "Ancestralidade"
+smote_data$Ancestralidade <- factor(smote_data$Ancestralidade, levels = levels(trainData$Ancestralidade))
+
+# Treinar modelo XGBoost
+set.seed(123)
+capture.output({
+  fit_xgb3 <- train(Ancestralidade ~ ., data = smote_data, method = "xgbTree",
+                    trControl = ctrl1,
+                    metric = "ROC",
+                    tuneLength=3)
+}, file = "NUL")
+
+# Avaliação no conjunto de teste
+pred_class <- predict(fit_xgb3, testData)
+conf_matrix <- confusionMatrix(pred_class, testData$Ancestralidade)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+```
+
+Matriz de Confusão:
+
+- 218 previsões corretas para "EUR", mas teve dificuldades nas outras classes.
+- Confirma que o modelo está enviesado para prever EUR corretamente, mas falha nas outras classes
+
+Métricas de Desempenho:
+
+- Accuracy: 91.21% → Classifica corretamente na maioria dos casos.
+- AccuracyLower: 0.8688 e AccuracyUpper: 0.9448 → accuracy real do modelo pode variar nesse intervalo que representa uma boa estabilidade no desempenho
+- AccuracyNull: 0.9121 → o modelo pode estar apenas a prever a classe dominante.
+- Kappa: 0 → indica que o modelo não está a prever melhor do que um classificador aleatório.
+- Especificidade: 0.4 → Tem dificuldade em identificar corretamente os casos negativos.
+- Balanced Accuracy: 0.6351 → O modelo não está completamente equilibrado, pois a especificidade é baixa.
+- p-value da accuracy (0.5577) indica que não há diferença estatística significativa entre o modelo e um classificador aleatório.
+- McNemarPValue está como NA, o que pode indicar que o teste não foi realizado ou não é aplicável neste caso.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Previsão de probabilidades (para AUC e boxplot)
+pred_prob <- suppressWarnings(predict(fit_xgb3, testData, type = "prob"))
+
+# Filtrar apenas as classes "EUR" e "AFR"
+testData <- testData[testData$Ancestralidade %in% c("EUR", "AFR"), ]
+pred_prob <- predict(fit_xgb3, testData, type = "prob")
+
+# Escolher uma classe como "positiva" arbitrária (por exemplo, a primeira)
+positive_class <- colnames(pred_prob)[1]
+
+# Calcular Precision e Recall
+precision_vec <- diag(conf_matrix$table) / colSums(conf_matrix$table)
+recall_vec <- diag(conf_matrix$table) / rowSums(conf_matrix$table)
+
+# Calcular Macro F1-score manualmente (sem yardstick)
+f1_per_class <- function(conf_mat) {
+  by_class <- conf_mat$byClass
+  if (is.matrix(by_class)) {
+    f1 <- 2 * by_class[, "Sensitivity"] * by_class[, "Precision"] /
+            (by_class[, "Sensitivity"] + by_class[, "Precision"])
+    f1[is.na(f1)] <- 0
+    return(mean(f1))
+  } else {
+    # Only two classes
+    f1 <- 2 * by_class["Sensitivity"] * by_class["Precision"] /
+            (by_class["Sensitivity"] + by_class["Precision"])
+    return(ifelse(is.na(f1), 0, f1))
+  }
+}
+
+f1_macro <- f1_per_class(conf_matrix)
+cat("F1 Score:", round(f1_macro, 3), "\n")
+cat("Recall:", round(recall_vec, 3), "\n")
+cat("Precision:", round(precision_vec, 3), "\n")
+```
+
+- Precisão: 1 → Prevê apenas a classe "EUR" com alta confiança.
+- Recall: 0.912 → Identifica bem apenas a classe "EUR".
+- F1 Score: 0.119  → Indica um score muito baixo, o que indica um grande desequilíbrio entre precisão e recall.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+roc_curve <- roc(response = testData$Ancestralidade, 
+                 predictor = pred_prob[, positive_class], 
+                 levels = c("EUR", "AFR"))
+
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Plot ROC curve
+plot(roc_curve, col = palette_3, lwd = 2, main = "ROC Curve - EUR vs AFR")
+
+# cálculo de AUC para multiclasse
+multiclass_auc <- multiclass.roc(response = testData$Ancestralidade,
+                                 predictor = as.matrix(pred_prob))
+auc_score <- auc(multiclass_auc)
+cat("Multiclass AUC Score:", round(auc_score, 3), "\n")
+
+
+```
+
+Forma da Curva:
+
+- A curva segue um padrão escalonado, indicando que o modelo está a tomar decisões em diferentes limiares de classificação, mas está acima da linha diagonal, o que significa que o modelo tem um desempenho melhor do que um classificador aleatório. 
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5). Como a curva do modelo está bem acima dessa linha, isso confirma que o modelo tem um desempenho significativamente melhor do que um classificador aleatório.
+
+AUC Score:
+
+- AUC: 0.827654 → Distingue bem algumas das classes.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Importância das features
+importance <- varImp(fit_xgb3, scale = FALSE)
+
+# Extração variavel importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Genes mais relevantes: 317749 com um peso de 0.125560 e Gene 283345 com peso 0.1217968.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.07), sugerindo que são os principais responsáveis pela decisão do modelo. 
+- O modelo pode estar dependente de poucos genes-chave, enquanto outros têm impacto reduzido. Isso pode indicar que algumas características podem ser removidas sem afetar o desempenho.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Boxplot das probabilidades para cada classe
+positive_class <- colnames(pred_prob)[1]
+boxplot(pred_prob[, positive_class] ~ testData$Ancestralidade,
+        col = palette_3,
+        main = paste("Probabilidade predita - Classe:", positive_class),
+        ylab = "Predicted Probability")
+
+
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Classe AFR:
+
+- A mediana da probabilidade predita está próxima de 0.05.
+- O intervalo interquartil (IQR) varia entre aproximadamente 0.02 e 0.1, indicando baixa dispersão.
+- Não há outliers, sugerindo que o modelo prevê esta classe de forma consistente.
+
+Outras classes
+
+- EUR (Europeia) apresenta vários outliers, com probabilidades chegando a 0.35.
+- As classes AFR_ADMIX, AMR, EAS, EUR_ADMIX, SAS e SAS_ADMIX têm probabilidades próximas de zero, indicando que o modelo raramente prevê essas classes como AFR.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+## C. XGBoost com SMOTE - Cancer
+
+# Preparar dados
+clean_data_for_2part <- clini_data_no_na
+
+# Definir variável resposta
+f_cancer <- as.factor(clean_data_for_2part$cancer_type)
+names(f_cancer) <- clean_data_for_2part$sample_ID
+
+# Alinhar dados de expressão com amostras com dados clínicos
+common_samples <- intersect(colnames(expr_all), names(f_cancer))
+logCPM_sub <- expr_all[, common_samples]
+labels <- f_cancer[common_samples]
+
+# Construir dataframe para modelagem
+data_model <- as.data.frame(t(logCPM_sub))  # genes como colunas
+data_model$TipoTumor <- factor(labels)
+
+# Ajustar levels para uso com SMOTE e xgboost
+levels(data_model$TipoTumor) <- make.names(levels(data_model$TipoTumor))
+
+# Dividir treino e teste
+set.seed(123)
+trainIndex <- createDataPartition(data_model$TipoTumor, p = 0.5, list = FALSE)
+trainData <- data_model[trainIndex, ]
+testData  <- data_model[-trainIndex, ]
+
+# SMOTE
+trainData_numeric <- trainData[, sapply(trainData, is.numeric)]
+smote_result <- SMOTE(trainData_numeric, trainData$TipoTumor, K = 3, dup_size = 2)
+smote_data <- smote_result$data
+colnames(smote_data)[ncol(smote_data)] <- "TipoTumor"
+smote_data$TipoTumor <- factor(smote_data$TipoTumor, levels = levels(trainData$TipoTumor))
+
+# Treinar modelo XGBoost
+set.seed(123)
+capture.output({
+  fit_xgb4 <- train(TipoTumor ~ ., data = smote_data, method = "xgbTree",
+                    trControl = ctrl1, 
+                    metric = "ROC", tuneLength=3)
+}, file = "NUL")
+
+# Avaliação no conjunto de teste
+pred_class <- predict(fit_xgb4, testData)
+conf_matrix <- confusionMatrix(pred_class, testData$TipoTumor)
+pander::pander(conf_matrix, caption = "Confusion Matrix Statistics (per class)")
+
+```
+
+Matriz de Confusão:
+
+- Astrocytoma: 58 corretos, 20 classificados como Oligoastrocytoma, 14 como Oligodendroglioma.
+- Oligoastrocytoma: 24 corretos, 29 classificados como Astrocytoma, 18 como Oligodendroglioma.
+- Oligodendroglioma: 54 corretos, 18 classificados como Oligoastrocytoma, 4 como Astrocytoma.Astrocytoma e Astrocytoma e Oligodendroglioma têm melhor desempenho, com sensibilidade acima de 62%. Oligoastrocytoma tem o pior desempenho, com sensibilidade de apenas 38.71%, indicando que o modelo tem dificuldades em identificar corretamente essa classe.
+
+Métricas de Desempenho:
+
+- Accuracy: 56.9% → O modelo classifica corretamente 56.9% dos exemplos, o que pode ser melhorado. 
+- Kappa: 0.3489 → Indica concordância moderada entre previsões e valores reais. 
+- Mcnemar's Test P-Value: 0.06554 → P-valor relativamente alto, indicando que o modelo pode estar enviesado para certas classes, sem grande distinção entre elas.
+
+Especificidade: O modelo distingue bem as classes, mas ainda há erros na previsão de Oligoastrocytoma.
+
+- Astrocytoma: 77.03%
+- Oligoastrocytoma: 73.45%
+- Oligodendroglioma: 85.62%
+
+Balanced Accuracy: Oligoastrocytoma tem a pior acurácia balanceada, indicando que o modelo tem dificuldades em prever essa classe corretamente.
+
+- Astrocytoma: 70.38%
+- Oligoastrocytoma: 56.08%
+- Oligodendroglioma: 74.21%
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Previsão de probabilidades
+pred_prob <- suppressWarnings(predict(fit_xgb4, testData, type = "prob"))
+
+# Escolher uma classe como "positiva" arbitrária (por exemplo, a primeira)
+positive_class <- levels(testData$TipoTumor)[1]
+roc_curve <-roc(response = testData$TipoTumor, predictor = pred_prob[, positive_class])
+auc_score <- auc(roc_curve)
+cat("AUC Score:", auc_score, "\n")
+
+# Curva ROC
+plot(roc_curve, col = palette_3, main = "ROC Curve for XGBoost (com SMOTE) - TipoTumor")
+```
+
+Forma da Curva:
+
+- A curva segue um padrão escalonado, indicando que o modelo está a tomar decisões em diferentes limiares de classificação.
+
+Comparação com um Classificador Aleatório:
+
+- A linha diagonal representa um classificador aleatório (AUC = 0.5).
+- Como a curva do modelo está bem acima dessa linha, isso confirma que o modelo tem um desempenho significativamente melhor do que um classificador aleatório.
+
+- AUC Score: 0.7648 → Tem uma boa capacidade de distinguir entre as classes. Acima de 0.75 indica um modelo útil.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Calcular F1-score, Recall e Precision (para a mesma classe positiva)
+f1_smote <- F1_Score(y_pred = pred_class, y_true = testData$TipoTumor, positive = positive_class)
+
+precision_vec <- diag(conf_matrix$table) / colSums(conf_matrix$table)
+recall_vec <- diag(conf_matrix$table) / rowSums(conf_matrix$table)
+
+cat("F1 Score:", f1_smote, "\n")
+cat("Recall:", round(recall_vec, 3), "\n")
+cat("Precision:", round(precision_vec, 3), "\n")
+
+
+
+```
+
+Recall: O modelo identifica bem Astrocytoma e Oligodendroglioma, mas tem dificuldades com Oligoastrocytoma.
+
+- Astrocytoma: 63.74%
+- Oligoastrocytoma: 38.71%
+- Oligodendroglioma: 62.79% 
+
+Precision:
+
+- Astrocytoma: 77.55%
+- Oligoastrocytoma: 77.38%
+- Oligodendroglioma: 80.37% 
+
+- F1 Score: 0.6857 → O F1 Score mede o equilíbrio entre precisão e recall. Um valor de 0.6857 indica um desempenho razoável.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Importância das features
+importance <- varImp(fit_xgb4, scale = FALSE)
+
+# Extrair variável importance como data frame
+importance_df <- as.data.frame(importance$importance)
+importance_df$Gene <- rownames(importance_df)
+importance_df <- importance_df[order(-importance_df$Overall), ]  # Sort by importance
+
+# Seleção top 20
+top_20 <- head(importance_df, 20)
+
+# Tabela
+knitr::kable(top_20[, c("Gene", "Overall")], caption = "Top 20 Most Important Genes")
+
+plot(importance, top = 20, main = "Top 20 Important Features")
+```
+
+Importância dos Genes:
+
+- Genes mais relevantes: 55616 com um peso de 0.0452976 e Gene 1436 com peso 0.0253459.
+- Os primeiros 5 genes têm valores relativamente altos (acima de 0.02), sugerindo que são os principais responsáveis pela decisão do modelo.
+- O modelo pode estar dependente de poucos genes-chave, enquanto outros têm impacto reduzido. Isso pode indicar que algumas características podem ser removidas sem afetar o desempenho.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+
+# Boxplot das probabilidades
+boxplot(pred_prob[, positive_class] ~ testData$TipoTumor,
+        col = palette_3,
+        main = "Distribuição das Probabilidades - TipoTumor", ylab = "Probabilidade Prevista")
+```
+
+Boxplot - Distribuição das Probabilidades:
+
+Astrocytoma:
+
+- Mediana alta, indicando que o modelo prevê esta classe com confiança.
+- Intervalo interquartil (IQR) relativamente estreito, sugerindo baixa variabilidade nas previsões.
+- Poucos outliers, indicando que o modelo é consistente ao prever Astrocytoma.
+
+Oligoastrocytoma:
+
+- Mediana mais baixa, indicando que o modelo tem dificuldades em prever esta classe corretamente.
+- Maior dispersão, sugerindo incerteza nas previsões.
+- Outliers presentes, indicando que algumas previsões são altamente erráticas.
+
+Oligodendroglioma:
+
+- Mediana alta, semelhante à de Astrocytoma.
+- Menos variabilidade do que Oligoastrocytoma, indicando que o modelo prevê esta classe com mais confiança.
+- Poucos outliers, sugerindo boa estabilidade nas previsões.
+
+Interpretação:
+
+- O modelo tem alta confiança ao prever Astrocytoma e Oligodendroglioma, mas incerteza ao prever Oligoastrocytoma.
+- A maior variabilidade nas previsões de Oligoastrocytoma pode estar impactando negativamente a acurácia geral do modelo.
+
+## **12. Comparação dos modelos por variável**
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Variável Survival
+
+min_resamples <- min(sapply(list(fit_rf1, fit_svm1, fit_xgb1), function(x) nrow(x$resample)))
+
+fit_rf1$resample <- fit_rf1$resample[order(fit_rf1$resample$Resample), ]
+fit_svm1$resample <- fit_svm1$resample[order(fit_svm1$resample$Resample), ]
+fit_xgb1$resample <- fit_xgb1$resample[order(fit_xgb1$resample$Resample), ]
+
+# Comparar resultados
+results_survival <- resamples(list(RF = fit_rf1, SVM = fit_svm1, XGB = fit_xgb1))
+
+summary_df <- as.data.frame(summary(results_survival)$statistics)
+summary_df <- rownames_to_column(summary_df, "Metric_Model")
+
+datatable(summary_df, 
+          options = list(pageLength = 10, autoWidth = TRUE), 
+          caption = "Summary of Resampling Metrics")
+
+# Comparação Visual
+bwplot(results_survival,
+       col = palette_3,
+       main = "Medidas ", ylab = "Model")
+
+```
+Análise da comparação:
+
+Accuracy:
+
+- SVM tem a maior mediana de acurácia (0.9429), indicando que, em média, este é o modelo mais preciso.
+
+- XGB e RF têm medianas semelhantes (0.9143), mas RF tem um mínimo mais baixo (0.8571), sugerindo maior variabilidade.
+
+- SVM e XGB atingem a mesma accuracy máxima (0.9857), indicando que ambos podem ter um desempenho bom em alguns casos.
+
+Kappa Score:
+
+- SVM tem a maior mediana de Kappa (0.8861), indicando que ele tem a melhor concordância entre previsões e valores reais.
+
+- XGB tem um Kappa semelhante ao RF na mediana (0.8291 vs. 0.8280), mas atinge um máximo igual ao SVM (0.8863).
+
+- RF tem um Kappa mínimo mais baixo (0.7143), sugerindo que pode ter mais variação na concordância.
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Variável Sex
+
+min_resamples <- min(sapply(list(fit_rf2, fit_svm2, fit_xgb2), function(x) nrow(x$resample)))
+
+fit_rf2$resample <- fit_rf2$resample[1:min_resamples, ]
+fit_svm2$resample <- fit_svm2$resample[1:min_resamples, ]
+fit_xgb2$resample <- fit_xgb2$resample[1:min_resamples, ]
+
+# Comparar resultados
+results_sex <- resamples(list(RF = fit_rf2, SVM = fit_svm2, XGB = fit_xgb2))
+
+summary_df_sex <- as.data.frame(summary(results_sex)$statistics)
+summary_df_sex <- rownames_to_column(summary_df_sex, "Metric_Model")
+
+datatable(summary_df_sex, 
+          options = list(pageLength = 10, autoWidth = TRUE), 
+          caption = "Summary of Resampling Metrics (Sex)")
+
+# Comparação Visual
+bwplot(results_sex,
+       col = palette_3,
+       main = "Medidas ", ylab = "Model")
+
+```
+
+Análise de comparação:
+
+Accuracy:
+
+- XGB: Maior acurácia entre os três modelos, com valores próximos de 1. Baixa variabilidade, indicando alta estabilidade nas previsões. O ponto médio (verde) está próximo do limite superior, sugerindo alta consistência.
+
+- SVM: Acurácia moderada, em torno de 0.8. Maior variabilidade do que XGB, indicando flutuações no desempenho. O ponto médio (azul) está abaixo do limite superior, sugerindo alguma inconsistência.
+
+- RF: Menor acurácia entre os três modelos, em torno de 0.7. Maior variabilidade, indicando instabilidade nas previsões. O ponto médio (vermelho) está no centro do boxplot, sugerindo desempenho inconsistente.
+ 
+
+Kappa:
+
+- XGB tem o maior Kappa, com valores próximos de 1, indicando alta concordância entre previsões e valores reais.
+
+- SVM tem um Kappa moderado, com valores em torno de 0.5, sugerindo uma concordância razoável, mas inferior ao XGB.
+
+- RF tem o menor Kappa, com valores próximos de 0.3, indicando baixa concordância entre previsões e valores reais.
+
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Variável Ancestralidade
+
+min_resamples <- min(sapply(list(fit_rf3, fit_svm3, fit_xgb3), function(x) nrow(x$resample)))
+
+fit_rf3$resample <- fit_rf3$resample[1:min_resamples, ]
+fit_svm3$resample <- fit_svm3$resample[1:min_resamples, ]
+fit_xgb3$resample <- fit_xgb3$resample[1:min_resamples, ]
+
+# Comparar resultados
+results_ancestralidade <- resamples(list(RF = fit_rf3, SVM = fit_svm3, XGB = fit_xgb3))
+
+summary_df_ancestralidade <- as.data.frame(summary(results_ancestralidade)$statistics)
+summary_df_ancestralidade <- rownames_to_column(summary_df_ancestralidade, "Metric_Model")
+
+datatable(summary_df_ancestralidade, 
+          options = list(pageLength = 10, autoWidth = TRUE), 
+          caption = "Summary of Resampling Metrics (Ancestralidade)")
+
+# Comparação Visual
+bwplot(results_ancestralidade,
+       col = palette_3,
+       main = "Medidas ", ylab = "Model")
+
+
+```
+Comparação Geral dos Modelos:
+
+- XGB (XGBoost): Melhor desempenho na maioria das métricas, especialmente AUC, Balanced Accuracy e F1 Score. Menor variabilidade, indicando maior estabilidade nas previsões. Alta precisão e recall, sugerindo boa separação entre classes.
+
+- SVM (Support Vector Machine): Desempenho intermediário, com boa precisão e recall, mas maior variabilidade. Pode ser menos estável do que XGB, mas ainda apresenta bons resultados. Kappa e Balanced Accuracy são razoáveis, indicando concordância moderada.
+
+- RF (Random Forest): Menor desempenho em várias métricas, especialmente Kappa e logLoss. Maior variabilidade, sugerindo instabilidade nas previsões. Pode ser útil para interpretação, mas não é o melhor modelo em termos de precisão.
+
+Análise das Métricas:
+
+- AUC e Balanced Accuracy: XGB tem os melhores valores, indicando excelente separação entre classes. SVM tem desempenho razoável, mas com maior variabilidade. RF tem os piores valores, sugerindo dificuldade na separação das classes.
+
+- F1 Score e Recall: XGB tem o melhor F1 Score, indicando bom equilíbrio entre precisão e recall. SVM tem recall alto, mas pode ter menor precisão. RF tem menor F1 Score, sugerindo baixa concordância entre previsões e valores reais.
+
+- Kappa e logLoss: XGB tem o melhor Kappa, indicando alta concordância entre previsões e valores reais. SVM tem um Kappa razoável, mas com maior variabilidade. RF tem o menor Kappa e maior logLoss, sugerindo baixa confiabilidade.
+
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=6, results='asis'}
+# Variável Cancer
+
+min_resamples <- min(sapply(list(fit_rf4, fit_svm4, fit_xgb4), function(x) nrow(x$resample)))
+
+fit_rf4$resample <- fit_rf4$resample[1:min_resamples, ]
+fit_svm4$resample <- fit_svm4$resample[1:min_resamples, ]
+fit_xgb4$resample <- fit_xgb4$resample[1:min_resamples, ]
+
+# Comparar resultados
+results_cancer <- resamples(list(RF = fit_rf4, SVM = fit_svm4, XGB = fit_xgb4))
+
+summary_df_cancer <- as.data.frame(summary(results_cancer)$statistics)
+summary_df_cancer <- rownames_to_column(summary_df_cancer, "Metric_Model")
+
+datatable(summary_df_cancer, 
+          options = list(pageLength = 10, autoWidth = TRUE), 
+          caption = "Summary of Resampling Metrics (Cancer)")
+
+# Comparação Visual
+bwplot(results_cancer,
+       col = palette_3,
+       main = "Medidas ", ylab = "Model")
+
+
+```
+Comparação Geral dos Modelos:
+
+- XGB (XGBoost): Melhor desempenho na maioria das métricas, especialmente AUC, Balanced Accuracy e F1 Score. Menor variabilidade, indicando maior estabilidade nas previsões. Alta precisão e recall, sugerindo boa separação entre classes.
+
+- SVM (Support Vector Machine): Desempenho intermediário, com boa precisão e recall, mas maior variabilidade. Pode ser menos estável do que XGB, mas ainda apresenta bons resultados Kappa e Balanced Accuracy são razoáveis, indicando concordância moderada.
+
+- RF (Random Forest): Menor desempenho em várias métricas, especialmente Kappa e logLoss. Maior variabilidade, sugerindo instabilidade nas previsões. Pode ser útil para interpretação, mas não é o melhor modelo em termos de precisão.
+
+Análise das Métricas:
+
+- AUC e Balanced Accuracy: XGB tem os melhores valores, indicando excelente separação entre classes. SVM tem desempenho razoável, mas com maior variabilidade. RF tem os piores valores, sugerindo dificuldade na separação das classes.
+
+- F1 Score e Recall: XGB tem o melhor F1 Score, indicando bom equilíbrio entre precisão e recall. SVM tem recall alto, mas pode ter menor precisão. RF tem menor F1 Score, sugerindo baixa concordância entre previsões e valores reais.
+
+- Kappa e logLoss: XGB tem o melhor Kappa, indicando alta concordância entre previsões e valores reais. SVM tem um Kappa razoável, mas com maior variabilidade. RF tem o menor Kappa e maior logLoss, sugerindo baixa confiabilidade.
