@@ -30,7 +30,19 @@ cran_packages <- c(
   "mgcv",         # GAM models
   "ggpubr",       # Publication-ready plots
   "GGally",       # Pair plots (extension of ggplot2)
-  "htmltools"     # To print text in specific format
+  "htmltools",    # To print text in specific format
+  "caret",        # Modelation
+  "randomForest", # Random Forest
+  "smotefamily",  # SMOTE
+  "xgboost",      # xgboost
+  "e1071",        # SVM
+  "pROC",         # ROC CURVE
+  "MLmetrics",    # F1_score
+  "pander",       # Tables
+  "tibble",       # Interactive datatables
+  "Rtsne",        # UMAP
+  "uwot",         # T-SNE
+  "factoextra"    # T-SNE
 )
 
 bioc_packages <- c(
@@ -67,14 +79,17 @@ if (length(bioc_missing) > 0) BiocManager::install(bioc_missing)
 other_missing <- other_packages[!other_packages %in% rownames(installed.packages())]
 if (length(other_missing) > 0) install.packages(other_missing)
 
-
 # Load All Packages
-
 all_packages <- c(cran_packages, bioc_packages, other_packages)
-
 invisible(lapply(all_packages, function(pkg) {
   suppressMessages(library(pkg, character.only = TRUE))
 }))
+
+# Import data
+clini_data <- read.delim("lgg_tcga_pan_can_atlas_2018_clinical_data.tsv", stringsAsFactors=TRUE)
+gene_data <- read.delim("all_genes_mrna.txt")
+
+palette_3 <- c("#fd7f6f", "#7eb0d5", "#b2e061", "#bd7ebe", "#ffb55a", "#ffee65", "#beb9db", "#fdcce5", "#8bd3c7")
 
 # 1. Tratamento e Vizualização de dados ----
 # 1.a. Preparação e pré-processamento dos dados ----
