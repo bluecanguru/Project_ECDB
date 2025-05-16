@@ -58,7 +58,6 @@ Os dados provêm do estudo *"LGG TCGA PanCancer Atlas 2018"*, disponível no por
 ## 📖Estrutura Repositório
     📂 data/                # Raw and processed data files
     📂 scripts/             # R scripts for data analysis
-    📂 results/             # Output files, plots, and reports
     📂 docs/                # Documentation and reports (HTML, R Markdown)
     📄 README.md            # Project overview and instructions
 
@@ -90,8 +89,20 @@ install.packages(c(
   "mgcv",         # GAM models
   "ggpubr",       # Publication-ready plots
   "GGally",       # Pair plots (extension of ggplot2)
-  "htmltools",     # To print text in specific format
-  "gprofiler2"
+  "htmltools",    # To print text in specific format
+  "gprofiler2"    # g:Profiler interface (CRAN but bio-focused)
+  "caret",        # Modelation
+  "randomForest", # Random Forest
+  "smotefamily",  # SMOTE
+  "xgboost",      # xgboost
+  "e1071",        # SVM
+  "pROC",         # ROC CURVE
+  "MLmetrics",    # F1_score
+  "pander",       # Tables
+  "tibble",       # Interactive datatables
+  "Rtsne",        # UMAP
+  "uwot",         # T-SNE
+  "factoextra"    # T-SNE
 ))
 ```
 
